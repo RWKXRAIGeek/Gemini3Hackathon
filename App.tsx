@@ -357,7 +357,6 @@ const App: React.FC = () => {
                   gameState.hand[selectedIndices[0]].id === gameState.hand[selectedIndices[1]].id &&
                   gameState.hand[selectedIndices[0]].fusionTargetId;
 
-  // Mock technical data for the Tactical Overlay
   const mockSystemData = useMemo(() => [
     { addr: "0x7FFD-8E12-F001", status: "BUFFER_OVERFLOW_RISK", severity: "HIGH" },
     { addr: "0x1129-C004-A921", status: "ENCRYPTION_KEY_EXPOSED", severity: "CRITICAL" },
@@ -372,7 +371,7 @@ const App: React.FC = () => {
   ], []);
 
   return (
-    <div className="flex h-screen w-screen bg-[#050814] text-[#9CFF57] font-mono selection:bg-[#3DDCFF]/30 overflow-hidden">
+    <div className="flex h-screen w-screen bg-[#050814] text-[#9CFF57] font-mono selection:bg-[#3DDCFF]/30 overflow-hidden relative">
       
       {/* Zone 1: Kernel Diagnostics (Left Sidebar) */}
       <aside className="w-1/4 border-r border-[#1A2A40] flex flex-col bg-[#050814]/50 backdrop-blur-sm z-20">
@@ -466,11 +465,12 @@ const App: React.FC = () => {
         {/* Visual Diagnostic Tactical Overlay */}
         {gameState.isTacticalOverlayOpen && (
           <div 
-            className="absolute inset-0 z-40 flex items-center justify-center bg-[#050814]/70 backdrop-blur-sm p-12 cursor-default"
+            className="absolute inset-0 z-40 flex items-center justify-center bg-[#050814]/70 backdrop-blur-sm p-12 cursor-default overflow-hidden"
             onClick={toggleTacticalOverlay}
           >
+            <div className="scanline-effect"></div>
             <div 
-              className="w-full h-full border-4 border-[#3DDCFF] bg-[#050814]/90 shadow-[0_0_50px_rgba(61,220,255,0.3)] relative p-8 flex flex-col overflow-hidden animate-in zoom-in duration-300 flicker"
+              className="w-full h-full border-4 border-[#3DDCFF] bg-[#050814]/95 shadow-[0_0_50px_rgba(61,220,255,0.3)] relative p-8 flex flex-col overflow-hidden animate-slide-left flicker"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] animate-pulse"></div>
@@ -578,9 +578,10 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Start / End Overlay Menu */}
         {(!gameState.isGameStarted || gameState.kernelHP <= 0) && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
-            <div className="relative p-12 bg-[#050814]/90 border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all">
+            <div className="relative p-12 bg-[#050814]/90 border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all animate-monitor-on">
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] flicker"></div>
               
               <div className="mb-8">
@@ -632,6 +633,7 @@ const App: React.FC = () => {
           <span className="text-[10px] text-gray-600 font-mono">HAND: {gameState.hand.length}/5</span>
         </header>
 
+        {/* Strategy Section */}
         <section className="p-4 border-b border-[#1A2A40] h-1/3 overflow-y-auto bg-[#1A2A40]/5">
            <div className="text-[9px] text-gray-500 font-black mb-3 tracking-widest uppercase italic">>> STRATEGIC_ADVISORY</div>
            {gameState.lastGeminiResponse ? (
@@ -655,6 +657,7 @@ const App: React.FC = () => {
            )}
         </section>
 
+        {/* Card Tray (Exploit Kit) */}
         <section className="flex-1 overflow-hidden flex flex-col">
           <div className="p-3 border-b border-[#1A2A40] flex justify-between items-center text-[10px]">
             <span className="text-gray-500 uppercase font-black tracking-widest">Active_Payloads</span>
@@ -688,6 +691,7 @@ const App: React.FC = () => {
           </div>
         </section>
 
+        {/* Actions Tray */}
         <footer className="p-4 bg-[#1A2A40]/10 border-t border-[#1A2A40] space-y-3">
           <button 
             disabled={!canFuse}
@@ -704,7 +708,7 @@ const App: React.FC = () => {
       {/* Redemption Modal Layer */}
       {showRedemption && gameState.redemptionCard && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-50 flex items-center justify-center p-12">
-          <div className="max-w-md w-full p-8 border-4 border-yellow-500 bg-[#050814] shadow-[0_0_100px_rgba(234,179,8,0.5)] relative overflow-hidden group">
+          <div className="max-w-md w-full p-8 border-4 border-yellow-500 bg-[#050814] shadow-[0_0_100px_rgba(234,179,8,0.5)] relative overflow-hidden group animate-monitor-on">
              <div className="absolute top-0 left-0 w-full h-1 bg-yellow-500 animate-ping opacity-20"></div>
              <div className="absolute -top-12 -right-12 w-24 h-24 border-4 border-yellow-500 rotate-45 group-hover:rotate-90 transition-transform duration-1000 opacity-30"></div>
              
