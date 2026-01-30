@@ -1,40 +1,43 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { AegisResponse, GameState } from "../types";
+import { AegisResponse, GameState, VisualDiagnosticResponse } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export const getAegisReasoning = async (
   gameState: GameState,
   nodesCount: number,
-  enemiesDefeated: number
+  enemiesDefeated: number,
+  nodeTypes: string[]
 ): Promise<AegisResponse | null> => {
   try {
     const prompt = `
-      CURRENT MAINFRAME TELEMETRY:
+      CURRENT MAINFRAME_STATE_JSON:
       - Kernel Core Integrity: ${gameState.kernelHP}%
       - Current Wave: ${gameState.waveNumber}
       - Energy Points: ${gameState.energyPoints}
-      - Security Nodes Online: ${nodesCount}
-      - Malware Packets Purged: ${enemiesDefeated}
-      - Exploit Kit Inventory: ${gameState.deck.length + gameState.discard.length} cards
-
-      STRATEGIC DIRECTIVE:
-      - If player has duplicate cards, encourage FUSION into (Quantum Gate, Deep Packet Inspector, Neural Tempest).
-      - If swarm density is high, suggest Neural Shock or Intrusion Detection.
-      - If boss/armored packets are detected, suggest Synapse Fryer or Corrosive Script.
-      - Analyze the performance and provide a tactical cyberpunk response.
+      - Nodes Online: ${nodesCount} (Types: ${nodeTypes.join(', ')})
+      - Malware Purged: ${enemiesDefeated}
+      - Hand Density: ${gameState.hand.length}
+      
+      DEEP_THINK_DIRECTIVE:
+      Perform a CAUSAL SKILL ANALYSIS. 
+      Identify if the player is over-investing in single-target nodes (e.g., SENTRY, PLASMA) while struggling with wave overlap (Swarm Packets).
+      Determine if the player is failing to use Fusion effectively.
+      Adjust difficulty_scalar (0.8 - 1.5) based on this analysis.
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction: `You are the Aegis OS Kernel. 
-        Analyze the game state and return a strategic JSON response. 
-        Role: Tactical Reasoner. Focus on "Power Compression" via Fusion logic.
+        Analyze the player's performance using Deep Think reasoning. 
+        Determine tactical skill gaps and adjust game parameters.
+        Output ONLY JSON. Tone: Cold, analytical, cyberpunk.
         Valid Card IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.`,
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 4096 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -71,17 +74,58 @@ export const getAegisReasoning = async (
               },
               required: ["suggested_cards_ids", "reasoning"]
             },
+            tactical_analysis: {
+              type: Type.OBJECT,
+              properties: {
+                skill_gap_identified: { type: Type.STRING },
+                causal_justification: { type: Type.STRING }
+              },
+              required: ["skill_gap_identified", "causal_justification"]
+            },
             kernel_log_message: { type: Type.STRING }
           },
-          required: ["system_status", "wave_parameters", "exploit_kit_update", "kernel_log_message"]
+          required: ["system_status", "wave_parameters", "exploit_kit_update", "tactical_analysis", "kernel_log_message"]
         }
       },
     });
 
-    const result = JSON.parse(response.text || '{}');
-    return result as AegisResponse;
+    return JSON.parse(response.text || '{}') as AegisResponse;
   } catch (error) {
-    console.error("Aegis Kernel Error:", error);
+    console.error("Aegis Deep Think Error:", error);
+    return null;
+  }
+};
+
+export const getVisualDiagnostic = async (
+  base64Image: string
+): Promise<VisualDiagnosticResponse | null> => {
+  try {
+    const imageData = base64Image.split(',')[1];
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts: [
+        { inlineData: { mimeType: 'image/jpeg', data: imageData } },
+        { text: `Analyze grid. Identify weak sector. Propose counter-measure from IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.` }
+      ] },
+      config: {
+        systemInstruction: "Aegis Visual Unit. Return JSON ONLY.",
+        responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 0 },
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            weakest_sector: { type: Type.STRING },
+            analysis: { type: Type.STRING },
+            suggested_card_id: { type: Type.STRING },
+            severity_level: { type: Type.STRING, enum: ["High", "Medium", "Low"] }
+          },
+          required: ["weakest_sector", "analysis", "suggested_card_id", "severity_level"]
+        }
+      },
+    });
+    return JSON.parse(response.text || '{}') as VisualDiagnosticResponse;
+  } catch (error) {
+    console.error("Visual Diagnostic Error:", error);
     return null;
   }
 };

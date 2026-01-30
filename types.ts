@@ -23,16 +23,11 @@ export interface Card {
   };
 }
 
-export interface GameState {
-  kernelHP: number;
-  energyPoints: number;
-  waveNumber: number;
-  hand: Card[];
-  deck: Card[];
-  discard: Card[];
-  isProcessing: boolean;
-  statusLog: string[];
-  lastGeminiResponse?: AegisResponse;
+export interface VisualDiagnosticResponse {
+  weakest_sector: string;
+  analysis: string;
+  suggested_card_id: string;
+  severity_level: 'High' | 'Medium' | 'Low';
 }
 
 export interface AegisResponse {
@@ -53,7 +48,25 @@ export interface AegisResponse {
     suggested_cards_ids: string[];
     reasoning: string;
   };
+  tactical_analysis: {
+    skill_gap_identified: string;
+    causal_justification: string;
+  };
   kernel_log_message: string;
+}
+
+export interface GameState {
+  kernelHP: number;
+  energyPoints: number;
+  waveNumber: number;
+  hand: Card[];
+  deck: Card[];
+  discard: Card[];
+  isProcessing: boolean;
+  isScanning: boolean;
+  statusLog: string[];
+  lastGeminiResponse?: AegisResponse;
+  lastDiagnostic?: VisualDiagnosticResponse;
 }
 
 export interface Point {

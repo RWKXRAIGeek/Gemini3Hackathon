@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, GameState, Point, CardType } from './types';
 import { GRID_SIZE, TILE_SIZE, INITIAL_DECK, MAX_ENERGY, MASTER_CARD_POOL } from './constants';
-import { getAegisReasoning } from './services/gemini';
+import { getAegisReasoning, getVisualDiagnostic } from './services/gemini';
 import { SecurityNode, MalwarePacket, FirewallBuffer } from './utils/gameClasses';
 
 const App: React.FC = () => {
@@ -14,6 +14,7 @@ const App: React.FC = () => {
     deck: [...INITIAL_DECK],
     discard: [],
     isProcessing: false,
+    isScanning: false,
     statusLog: ['[SYS_INIT] AEGIS OS BOOTING...', '[SYS_INIT] KERNEL CORE ACTIVE.'],
   });
 
@@ -72,15 +73,31 @@ const App: React.FC = () => {
     setActiveWave(true);
   };
 
+  const runVisualDiagnostic = async () => {
+    if (!canvasRef.current || gameState.isScanning) return;
+    setGameState(prev => ({ ...prev, isScanning: true }));
+    addLog('[VISUAL_SCAN] CAPTURING GRID TELEMETRY...');
+    const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
+    const diagnostic = await getVisualDiagnostic(imageData);
+    if (diagnostic) {
+      addLog(`[SCAN_RESULT] SECTOR ${diagnostic.weakest_sector} IDENTIFIED AS WEAK.`);
+      setGameState(prev => ({ ...prev, isScanning: false, lastDiagnostic: diagnostic }));
+    } else {
+      setGameState(prev => ({ ...prev, isScanning: false }));
+    }
+  };
+
   const endWave = useCallback(async () => {
     setActiveWave(false);
     setGameState(prev => ({ ...prev, isProcessing: true }));
     addLog('[SYS] BREACH EVENT CONCLUDED. ANALYZING DATA...');
 
+    const nodeTypes = gameRef.current.nodes.map(n => n.type);
     const aegis = await getAegisReasoning(
       gameState, 
       gameRef.current.nodes.length, 
-      gameRef.current.defeatedCount
+      gameRef.current.defeatedCount,
+      nodeTypes
     );
 
     if (aegis) {
@@ -98,6 +115,9 @@ const App: React.FC = () => {
       
       gameRef.current.difficultyMultiplier = aegis.wave_parameters.wave_difficulty;
       drawHand();
+      runVisualDiagnostic();
+    } else {
+      setGameState(prev => ({ ...prev, isProcessing: false }));
     }
   }, [gameState]);
 
@@ -114,7 +134,6 @@ const App: React.FC = () => {
     const [i1, i2] = selectedIndices;
     const c1 = gameState.hand[i1];
     const c2 = gameState.hand[i2];
-
     if (c1.id === c2.id && c1.fusionTargetId) {
       const fusedCard = MASTER_CARD_POOL[c1.fusionTargetId];
       if (fusedCard) {
@@ -136,18 +155,14 @@ const App: React.FC = () => {
     const idx = selectedIndices[0];
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    
     const x = Math.floor((e.clientX - rect.left) / TILE_SIZE);
     const y = Math.floor((e.clientY - rect.top) / TILE_SIZE);
     const card = gameState.hand[idx];
-
     if (card.type === CardType.SECURITY_NODE && gameState.energyPoints >= card.cost) {
       const occupied = gameRef.current.nodes.find(n => n.gridX === x && n.gridY === y);
       if (occupied) return;
-
       const newNode = new SecurityNode(x, y, card);
       gameRef.current.nodes.push(newNode);
-      
       setGameState(prev => ({
         ...prev,
         energyPoints: prev.energyPoints - card.cost,
@@ -164,22 +179,17 @@ const App: React.FC = () => {
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
     let requestRef: number;
-
     const loop = (time: number) => {
       const dt = (time - gameRef.current.lastFrameTime) / 1000;
       gameRef.current.lastFrameTime = time;
       ctx.fillStyle = '#050814';
       ctx.fillRect(0, 0, 600, 600);
-      
-      // Grid
       ctx.strokeStyle = '#101525';
       ctx.lineWidth = 1;
       for(let i=0; i<=GRID_SIZE; i++) {
         ctx.beginPath(); ctx.moveTo(i*TILE_SIZE, 0); ctx.lineTo(i*TILE_SIZE, 600); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, i*TILE_SIZE); ctx.lineTo(600, i*TILE_SIZE); ctx.stroke();
       }
-
-      // Path
       ctx.strokeStyle = '#1A2A40';
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -188,15 +198,12 @@ const App: React.FC = () => {
         else ctx.lineTo(p.x * TILE_SIZE + TILE_SIZE/2, p.y * TILE_SIZE + TILE_SIZE/2);
       });
       ctx.stroke();
-
-      // Kernel Core
       const core = gameRef.current.path[gameRef.current.path.length-1];
       ctx.fillStyle = '#3DDCFF';
       ctx.shadowBlur = 15;
       ctx.shadowColor = '#3DDCFF';
       ctx.fillRect(core.x * TILE_SIZE + 5, core.y * TILE_SIZE + 5, 50, 50);
       ctx.shadowBlur = 0;
-
       if (activeWave) {
         if (gameRef.current.enemiesToSpawn > 0) {
           gameRef.current.spawnTimer += dt;
@@ -228,15 +235,22 @@ const App: React.FC = () => {
         });
         if (gameRef.current.enemiesToSpawn === 0 && gameRef.current.enemies.length === 0) endWave();
       }
-
       gameRef.current.enemies.forEach(e => e.draw(ctx));
       gameRef.current.nodes.forEach(n => n.draw(ctx));
       gameRef.current.projectiles.forEach(p => p.draw(ctx));
+      if (gameState.isScanning) {
+        ctx.strokeStyle = '#3DDCFF';
+        ctx.setLineDash([5, 15]);
+        ctx.lineWidth = 2;
+        const scanY = (Date.now() % 2000) / 2000 * 600;
+        ctx.beginPath(); ctx.moveTo(0, scanY); ctx.lineTo(600, scanY); ctx.stroke();
+        ctx.setLineDash([]);
+      }
       requestRef = requestAnimationFrame(loop);
     };
     requestRef = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef);
-  }, [activeWave, endWave]);
+  }, [activeWave, endWave, gameState.isScanning]);
 
   const canFuse = selectedIndices.length === 2 && 
                   gameState.hand[selectedIndices[0]].id === gameState.hand[selectedIndices[1]].id &&
@@ -244,11 +258,10 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden text-sm select-none">
-      {/* Sidebar Stats */}
       <div className="w-1/4 border-r border-[#1A2A40] flex flex-col bg-[#050814] p-4 z-20 overflow-hidden">
         <div className="mb-6">
-          <h1 className="text-xl font-black text-[#3DDCFF] mb-1 tracking-tighter italic">AEGIS_OS_V3</h1>
-          <div className="text-[10px] text-gray-600 mb-4 font-mono">ACTIVE_SECURITY_KERNEL</div>
+          <h1 className="text-xl font-black text-[#3DDCFF] mb-1 tracking-tighter italic uppercase">Aegis_OS_Kernel</h1>
+          <div className="text-[10px] text-gray-600 mb-4 font-mono">DEEP_THINK_ENABLED_V5</div>
           <div className="space-y-4 font-mono">
             <div>
               <div className="flex justify-between text-[10px] mb-1">
@@ -263,59 +276,78 @@ const App: React.FC = () => {
               <span className="text-gray-500">ENERGY_FLUX</span>
               <span className="text-[#3DDCFF] font-bold">{gameState.energyPoints} / {MAX_ENERGY}</span>
             </div>
-            <div className="flex justify-between border-b border-gray-800 pb-2">
-              <span className="text-gray-500">WAVE_LEVEL</span>
-              <span className="text-[#9CFF57] font-bold">{gameState.waveNumber}</span>
-            </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto font-mono text-[10px] space-y-1">
-          <div className="text-gray-700 sticky top-0 bg-[#050814] pb-1 border-b border-gray-800 mb-2 font-bold uppercase tracking-widest">>> SYSTEM_LOG_FEED</div>
+          <div className="text-gray-700 sticky top-0 bg-[#050814] pb-1 border-b border-gray-800 mb-2 font-bold uppercase tracking-widest">>> LOG_FEED</div>
           {gameState.statusLog.map((log, i) => (
-            <div key={i} className={`leading-snug ${log.includes('[AEGIS]') ? 'text-[#9CFF57]' : 'text-gray-500'} flicker`}>
+            <div key={i} className={`leading-snug ${log.includes('[AEGIS]') ? 'text-[#9CFF57]' : log.includes('[SCAN_RESULT]') ? 'text-yellow-400' : 'text-gray-500'} flicker`}>
               {log}
             </div>
           ))}
         </div>
 
-        <button 
-          onClick={startWave}
-          disabled={activeWave || gameState.isProcessing}
-          className={`mt-4 w-full py-4 border-2 font-bold text-xs tracking-[0.2em] transition-all uppercase ${
-            activeWave || gameState.isProcessing ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10"
-          }`}
-        >
-          {gameState.isProcessing ? "AEGIS_SYNCING..." : "INIT_BREACH_WAVE"}
-        </button>
+        <div className="mt-4 space-y-2">
+          <button 
+            onClick={runVisualDiagnostic}
+            disabled={activeWave || gameState.isScanning}
+            className={`w-full py-2 border font-bold text-[10px] tracking-[0.1em] transition-all uppercase ${
+              gameState.isScanning ? "border-yellow-600 text-yellow-600 animate-pulse" : "border-gray-700 text-gray-500 hover:text-[#3DDCFF] hover:border-[#3DDCFF]"
+            }`}
+          >
+            {gameState.isScanning ? "SCANNING_SECTORS..." : "VISUAL_DIAGNOSTIC"}
+          </button>
+          
+          <button 
+            onClick={startWave}
+            disabled={activeWave || gameState.isProcessing}
+            className={`w-full py-4 border-2 font-bold text-xs tracking-[0.2em] transition-all uppercase ${
+              activeWave || gameState.isProcessing ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10"
+            }`}
+          >
+            {gameState.isProcessing ? "SYNCING_DEEP_THINK..." : "INIT_BREACH_WAVE"}
+          </button>
+        </div>
       </div>
 
-      {/* Grid */}
       <div className="relative flex-1 bg-black flex items-center justify-center p-4">
         <canvas ref={canvasRef} width={600} height={600} className="border border-[#1A2A40] shadow-2xl shadow-[#3DDCFF]/5" onClick={handleCanvasClick}/>
         
+        {gameState.lastDiagnostic && (
+          <div className="absolute top-10 left-10 p-4 bg-[#050814]/90 border border-yellow-500/50 backdrop-blur-md font-mono text-[10px] w-80 shadow-[0_0_20px_rgba(234,179,8,0.2)] z-30">
+            <div className="flex justify-between items-center border-b border-yellow-500/30 pb-2 mb-2">
+              <span className="text-yellow-500 font-bold tracking-widest uppercase italic">Visual_Scan</span>
+              <span className={`px-1 rounded ${gameState.lastDiagnostic.severity_level === 'High' ? 'bg-red-900 text-red-200' : 'bg-yellow-900 text-yellow-200'}`}>
+                {gameState.lastDiagnostic.severity_level}
+              </span>
+            </div>
+            <div className="mb-2">
+              <span className="text-gray-500">WEAK_SECTOR:</span> <span className="text-[#3DDCFF]">{gameState.lastDiagnostic.weakest_sector}</span>
+            </div>
+            <div className="text-gray-400 mb-2 leading-tight">"{gameState.lastDiagnostic.analysis}"</div>
+            <button onClick={() => setGameState(p => ({...p, lastDiagnostic: undefined}))} className="text-gray-600 hover:text-gray-400 uppercase text-[8px] tracking-widest">[CLOSE]</button>
+          </div>
+        )}
+
         {gameState.kernelHP <= 0 && (
           <div className="absolute inset-0 bg-black/95 z-40 flex flex-col items-center justify-center text-[#FF3B3B] font-mono">
             <div className="text-8xl font-black mb-2 italic">HALTED</div>
-            <div className="text-xl tracking-widest opacity-80 mb-12">KERNEL_PANIC: 0xDEADBEEF</div>
-            <button onClick={() => window.location.reload()} className="px-12 py-4 border-2 border-[#FF3B3B] text-[#FF3B3B] hover:bg-[#FF3B3B]/10 font-bold">REBOOT_AEGIS_OS</button>
+            <button onClick={() => window.location.reload()} className="px-12 py-4 border-2 border-[#FF3B3B] text-[#FF3B3B] hover:bg-[#FF3B3B]/10 font-bold">REBOOT_SYSTEM</button>
           </div>
         )}
 
         {gameState.isProcessing && (
           <div className="absolute inset-0 bg-black/30 backdrop-blur-md z-30 flex items-center justify-center">
-            <div className="text-[#3DDCFF] font-mono animate-pulse text-xl tracking-[0.8em] font-black italic">
-              AEGIS_SYNTHESIS...
-            </div>
+            <div className="text-[#3DDCFF] font-mono animate-pulse text-xl tracking-[0.8em] font-black italic">AEGIS_REASONING...</div>
           </div>
         )}
       </div>
 
-      {/* Exploit Kit & Fusion */}
       <div className="w-1/4 border-l border-[#1A2A40] bg-[#050814] p-4 flex flex-col overflow-hidden z-20">
         <div className="mb-4 flex justify-between items-baseline border-b border-gray-800 pb-2">
           <h2 className="text-sm font-bold text-[#9CFF57] tracking-widest uppercase italic">EXPLOIT_KIT</h2>
-          <span className="text-[10px] font-mono text-gray-600">SIZE: {gameState.hand.length}/5</span>
+          <span className="text-[10px] font-mono text-gray-600">H:{gameState.hand.length}/5</span>
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto pr-1">
@@ -336,11 +368,7 @@ const App: React.FC = () => {
                 </div>
                 <h3 className="font-bold text-[#9CFF57] group-hover:text-[#3DDCFF] transition-colors">{card.name}</h3>
                 <p className="text-[10px] text-gray-500 leading-tight mt-1">{card.description}</p>
-                {isSelected && (
-                  <div className="absolute top-0 right-0 p-1">
-                    <div className="w-2 h-2 bg-[#3DDCFF] rounded-full shadow-[0_0_5px_#3DDCFF]"/>
-                  </div>
-                )}
+                {isSelected && <div className="absolute top-0 right-0 p-1"><div className="w-2 h-2 bg-[#3DDCFF] rounded-full shadow-[0_0_5px_#3DDCFF]"/></div>}
               </div>
             );
           })}
@@ -358,9 +386,11 @@ const App: React.FC = () => {
           </button>
           
           {gameState.lastGeminiResponse && (
-            <div className="p-3 bg-[#1A2A40]/10 border border-[#1A2A40] rounded text-[10px] font-mono italic leading-relaxed text-[#9CFF57]">
-              <span className="text-gray-600 block mb-1">AEGIS_ADVISORY:</span>
-              "{gameState.lastGeminiResponse.exploit_kit_update.reasoning}"
+            <div className="p-3 bg-[#1A2A40]/30 border border-[#3DDCFF]/20 rounded text-[10px] font-mono leading-relaxed">
+              <div className="text-[#3DDCFF] font-black uppercase mb-1 tracking-widest italic border-b border-[#3DDCFF]/10 pb-1">Deep_Think_Analysis</div>
+              <div className="text-gray-500 mb-1">GAP: <span className="text-[#9CFF57]">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</span></div>
+              <div className="text-gray-400 italic mb-2">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div>
+              <div className="text-[#3DDCFF] border-t border-[#3DDCFF]/10 pt-1 uppercase text-[9px]">Scalar: x{gameState.lastGeminiResponse.wave_parameters.wave_difficulty}</div>
             </div>
           )}
         </div>
