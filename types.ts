@@ -71,6 +71,7 @@ export interface GameState {
   isProcessing: boolean;
   isScanning: boolean;
   isGameStarted: boolean;
+  isTacticalOverlayOpen: boolean;
   statusLog: string[];
   lastGeminiResponse?: AegisResponse;
   lastDiagnostic?: VisualDiagnosticResponse;
