@@ -1,0 +1,5 @@
+{
+  "name": "Circuit Breach: Aegis OS",
+  "description": "A terminal-based roguelike tower defense where Gemini 3 acts as the Aegis OS Kernel, dynamically rebalancing the game difficulty and selecting your exploit kit based on real-time performance telemetry.",
+  "requestFramePermissions": []
+}
