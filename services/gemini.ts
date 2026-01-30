@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AegisResponse, GameState, VisualDiagnosticResponse, SessionSummary, Card, CardType } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Fix: Initialized with process.env.API_KEY directly as per instructions
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getAegisReasoning = async (
   gameState: GameState,
@@ -27,6 +28,7 @@ export const getAegisReasoning = async (
       Adjust difficulty_scalar (0.8 - 1.5) based on this analysis.
     `;
 
+    // Fix: Using correct model name for complex text tasks
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
@@ -101,6 +103,7 @@ export const getVisualDiagnostic = async (
 ): Promise<VisualDiagnosticResponse | null> => {
   try {
     const imageData = base64Image.split(',')[1];
+    // Fix: Using correct model name for basic text/image tasks
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: { parts: [
@@ -144,6 +147,7 @@ export const getRedemptionCard = async (
       The card must adhere to the Neural Shock (debuff/AoE) or Encrypted Firewall (defense/retaliation) archetypes.
     `;
 
+    // Fix: Using correct model name for complex text tasks
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,

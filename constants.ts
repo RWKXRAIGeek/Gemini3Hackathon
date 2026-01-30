@@ -10,7 +10,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'basic_firewall': {
     id: 'basic_firewall',
     name: 'Basic Firewall',
-    description: 'Baseline sector isolation. Blocks and retaliates slightly.',
+    description: 'Baseline sector isolation.',
+    reasoningTip: 'DEPLOY AT JUNCTIONS TO BLOCK PATHWAYS.',
     cost: 4,
     type: CardType.SECURITY_NODE,
     rarity: 'COMMON',
@@ -20,7 +21,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'quantum_gate': {
     id: 'quantum_gate',
     name: 'Quantum Gate',
-    description: 'Fused Evolution: Retaliatory energy pulse against armored elite packets.',
+    description: 'Fused Evolution: Retaliatory energy pulse.',
+    reasoningTip: 'CRITICAL AGAINST ARMORED ELITE PACKETS.',
     cost: 8,
     type: CardType.SECURITY_NODE,
     rarity: 'RARE',
@@ -29,7 +31,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'scout_sensor': {
     id: 'scout_sensor',
     name: 'Scout Sensor',
-    description: 'Early detection of high-speed Swarm Packets.',
+    description: 'Early detection of high-speed packets.',
+    reasoningTip: 'PLACE AT ENTRANCES FOR MAXIMUM LEAD TIME.',
     cost: 3,
     type: CardType.SECURITY_NODE,
     rarity: 'COMMON',
@@ -39,7 +42,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'deep_packet_inspector': {
     id: 'deep_packet_inspector',
     name: 'Deep Packet Inspector',
-    description: 'Fused Evolution: Reveals hidden sub-routines. High detection range.',
+    description: 'Reveals hidden sub-routines.',
+    reasoningTip: 'ESSENTIAL FOR STEALTH_WORM DETECTION.',
     cost: 7,
     type: CardType.SECURITY_NODE,
     rarity: 'RARE',
@@ -48,7 +52,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'static_burst': {
     id: 'static_burst',
     name: 'Static Burst',
-    description: 'Threat stabilization via electronic interference.',
+    description: 'Electronic interference node.',
+    reasoningTip: 'USE TO DESTABILIZE CLUSTERED SWARMS.',
     cost: 3,
     type: CardType.SECURITY_NODE,
     rarity: 'COMMON',
@@ -58,7 +63,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'neural_tempest': {
     id: 'neural_tempest',
     name: 'Neural Tempest',
-    description: 'Fused Evolution: Massive AoE shock to stabilize sectors.',
+    description: 'Massive AoE shock node.',
+    reasoningTip: 'OPTIMAL FOR SECTOR STABILIZATION AT PEAK LOAD.',
     cost: 7,
     type: CardType.SECURITY_NODE,
     rarity: 'RARE',
@@ -67,7 +73,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'corrosive_script': {
     id: 'corrosive_script',
     name: 'Corrosive Script',
-    description: 'Degrades Boss Packets via persistent erosion.',
+    description: 'Persistent erosion sub-routine.',
+    reasoningTip: 'DEGRADES BOSS PACKETS OVER TIME.',
     cost: 5,
     type: CardType.SECURITY_NODE,
     rarity: 'UNCOMMON',
@@ -76,7 +83,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'logic_bomb': {
     id: 'logic_bomb',
     name: 'Logic Bomb',
-    description: 'Clears dense clusters at mainframe junctions.',
+    description: 'Mainframe junction clearer.',
+    reasoningTip: 'TRIGGER AT CORE CONFLUENCE FOR MAX DAMAGE.',
     cost: 6,
     type: CardType.TACTICAL_PATCH,
     rarity: 'RARE',
@@ -85,7 +93,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'vpn_tunnel': {
     id: 'vpn_tunnel',
     name: 'VPN Tunnel',
-    description: 'Slows malware velocity via rerouting.',
+    description: 'Packet rerouting delay sub-routine.',
+    reasoningTip: 'SLOWS VELOCITY. PAIR WITH HIGH-BD NODES.',
     cost: 4,
     type: CardType.SECURITY_NODE,
     rarity: 'UNCOMMON',
@@ -94,7 +103,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'protocol_sentry': {
     id: 'protocol_sentry',
     name: 'Protocol Sentry',
-    description: 'Balanced general-purpose threat mitigation.',
+    description: 'General-purpose threat mitigation.',
+    reasoningTip: 'BALANCED FOR STANDARD WAVE PATTERNS.',
     cost: 6,
     type: CardType.SECURITY_NODE,
     rarity: 'COMMON',
@@ -103,7 +113,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'synapse_fryer': {
     id: 'synapse_fryer',
     name: 'Synapse Fryer',
-    description: 'High-energy plasma designed to pierce multi-layered armor.',
+    description: 'High-energy plasma piercer.',
+    reasoningTip: 'BYPASSES LAYERED ARMOR ON ELITE PACKETS.',
     cost: 8,
     type: CardType.SECURITY_NODE,
     rarity: 'RARE',
@@ -112,7 +123,8 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
   'brain_jack': {
     id: 'brain_jack',
     name: 'Brain-Jack',
-    description: 'Forces targeted malware to attack other infections.',
+    description: 'Infection redirection module.',
+    reasoningTip: 'TURNS MALWARE AGAINST ITS OWN SUB-ROUTINES.',
     cost: 9,
     type: CardType.SECURITY_NODE,
     rarity: 'LEGENDARY',

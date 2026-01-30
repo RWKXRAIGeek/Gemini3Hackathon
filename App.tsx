@@ -14,6 +14,29 @@ const mockSystemVulnerabilities = [
 ];
 
 const App: React.FC = () => {
+  // Fix: Added missing canvasRef and gameRef
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gameRef = useRef({
+    nodes: [] as SecurityNode[],
+    enemies: [] as MalwarePacket[],
+    projectiles: [] as FirewallBuffer[],
+    defeatedCount: 0,
+    enemiesToSpawn: 0,
+    spawnTimer: 0,
+    difficultyMultiplier: 1.0,
+    lastFrameTime: performance.now(),
+    path: [
+      { x: 0, y: 5 },
+      { x: 2, y: 5 },
+      { x: 2, y: 2 },
+      { x: 5, y: 2 },
+      { x: 5, y: 7 },
+      { x: 8, y: 7 },
+      { x: 8, y: 5 },
+      { x: 9, y: 5 }
+    ] as Point[]
+  });
+
   const [gameState, setGameState] = useState<GameState>({
     kernelHP: INITIAL_HP,
     energyPoints: 20,
@@ -42,22 +65,6 @@ const App: React.FC = () => {
   const [ramFlash, setRamFlash] = useState(false);
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [rerouteBeam, setRerouteBeam] = useState<{from: Point, to: Point, opacity: number} | null>(null);
-
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gameRef = useRef({
-    nodes: [] as SecurityNode[],
-    enemies: [] as MalwarePacket[],
-    projectiles: [] as FirewallBuffer[],
-    path: [
-      {x: 0, y: 5}, {x: 1, y: 5}, {x: 2, y: 5}, {x: 3, y: 5}, {x: 3, y: 2}, 
-      {x: 6, y: 2}, {x: 6, y: 7}, {x: 9, y: 7}, {x: 9, y: 9}
-    ] as Point[],
-    defeatedCount: 0,
-    enemiesToSpawn: 0,
-    spawnTimer: 0,
-    lastFrameTime: 0,
-    difficultyMultiplier: 1.0
-  });
 
   // Handle Escape to cancel migration
   useEffect(() => {
@@ -94,6 +101,7 @@ const App: React.FC = () => {
   }, []);
 
   const resetGame = useCallback(() => {
+    // Fix: Using gameRef.current as it is now defined
     gameRef.current.nodes = [];
     gameRef.current.enemies = [];
     gameRef.current.projectiles = [];
@@ -170,6 +178,7 @@ const App: React.FC = () => {
   };
 
   const saveSession = useCallback(() => {
+    // Fix: Using gameRef.current as it is now defined
     const summary: SessionSummary = {
       waveReached: gameState.waveNumber,
       defeatedCount: gameRef.current.defeatedCount,
@@ -190,12 +199,14 @@ const App: React.FC = () => {
   const startWave = async () => {
     if (activeWave) return;
     addLog(`[WAVE_${gameState.waveNumber + 1}] COMMENCING SECURITY AUDIT...`);
+    // Fix: Using gameRef.current as it is now defined
     gameRef.current.enemiesToSpawn = 6 + gameState.waveNumber * 3;
     gameRef.current.spawnTimer = 0;
     setActiveWave(true);
   };
 
   const runVisualDiagnostic = async () => {
+    // Fix: Using canvasRef.current as it is now defined
     if (!canvasRef.current || gameState.isScanning) return;
     setGameState(prev => ({ ...prev, isScanning: true }));
     addLog('[VISUAL_SCAN] CAPTURING GRID TELEMETRY...');
@@ -216,6 +227,7 @@ const App: React.FC = () => {
     setGameState(prev => ({ ...prev, isProcessing: true }));
     addLog('[SYS] BREACH EVENT CONCLUDED. ANALYZING DATA...');
 
+    // Fix: Using gameRef.current as it is now defined
     const nodeTypes = gameRef.current.nodes.map(n => n.type);
     
     setGameState(prev => ({
@@ -296,6 +308,7 @@ const App: React.FC = () => {
   }, []);
 
   const decompileNode = (idx: number) => {
+    // Fix: Using gameRef.current as it is now defined
     const node = gameRef.current.nodes[idx];
     const card = node.card;
 
@@ -341,6 +354,7 @@ const App: React.FC = () => {
   };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
+    // Fix: Using canvasRef.current as it is now defined
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     const x = Math.floor((e.clientX - rect.left) / TILE_SIZE);
@@ -350,6 +364,7 @@ const App: React.FC = () => {
 
     // Commit Reroute
     if (reroutingNodeIndex !== null) {
+      // Fix: Using gameRef.current as it is now defined
       const node = gameRef.current.nodes[reroutingNodeIndex];
       const cost = Math.max(1, Math.floor(node.card.cost * 0.1));
       
@@ -415,6 +430,7 @@ const App: React.FC = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    // Fix: Using canvasRef.current as it is now defined
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     const x = Math.floor((e.clientX - rect.left) / TILE_SIZE);
@@ -427,11 +443,13 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    // Fix: Using canvasRef.current as it is now defined
     if (!canvasRef.current || !gameState.isGameStarted) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
     let requestRef: number;
     const loop = (time: number) => {
+      // Fix: Using gameRef.current as it is now defined
       const dt = (time - gameRef.current.lastFrameTime) / 1000;
       gameRef.current.lastFrameTime = time;
       
@@ -442,18 +460,20 @@ const App: React.FC = () => {
       ctx.lineWidth = 1;
       for(let i=0; i<=GRID_SIZE; i++) {
         ctx.beginPath(); ctx.moveTo(i*TILE_SIZE, 0); ctx.lineTo(i*TILE_SIZE, 600); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, i*TILE_SIZE); ctx.lineTo(600, i*TILE_SIZE); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i*TILE_SIZE); ctx.lineTo(600, i*TILE_SIZE, 600); ctx.stroke();
       }
       
       ctx.strokeStyle = '#1A2A40';
       ctx.lineWidth = 4;
       ctx.beginPath();
+      // Fix: Using gameRef.current as it is now defined
       gameRef.current.path.forEach((p, i) => {
         if (i === 0) ctx.moveTo(p.x * TILE_SIZE + TILE_SIZE/2, p.y * TILE_SIZE + TILE_SIZE/2);
         else ctx.lineTo(p.x * TILE_SIZE + TILE_SIZE/2, p.y * TILE_SIZE + TILE_SIZE/2);
       });
       ctx.stroke();
       
+      // Fix: Using gameRef.current as it is now defined
       const core = gameRef.current.path[gameRef.current.path.length-1];
       ctx.fillStyle = '#3DDCFF';
       ctx.shadowBlur = 15;
@@ -462,6 +482,7 @@ const App: React.FC = () => {
       ctx.shadowBlur = 0;
 
       if (activeWave) {
+        // Fix: Using gameRef.current as it is now defined
         if (gameRef.current.enemiesToSpawn > 0) {
           gameRef.current.spawnTimer += dt;
           if (gameRef.current.spawnTimer >= 0.8) {
@@ -472,6 +493,7 @@ const App: React.FC = () => {
           }
         }
         
+        // Fix: Using gameRef.current as it is now defined
         gameRef.current.enemies.forEach((e, idx) => {
           if (e.update(dt)) {
             setGameState(prev => {
@@ -489,20 +511,24 @@ const App: React.FC = () => {
           }
         });
         
+        // Fix: Using gameRef.current as it is now defined
         gameRef.current.projectiles.forEach((p, idx) => {
           p.update();
           if (p.isDead) gameRef.current.projectiles.splice(idx, 1);
         });
         
+        // Fix: Using gameRef.current as it is now defined
         gameRef.current.nodes.forEach(n => {
           n.update(dt, gameRef.current.enemies, (node, target) => {
             gameRef.current.projectiles.push(new FirewallBuffer(node.x, node.y, target, node.damage, node));
           });
         });
         
+        // Fix: Using gameRef.current as it is now defined
         if (gameRef.current.enemiesToSpawn === 0 && gameRef.current.enemies.length === 0) endWave();
       }
       
+      // Fix: Using gameRef.current as it is now defined
       gameRef.current.enemies.forEach(e => e.draw(ctx));
       gameRef.current.nodes.forEach(n => n.draw(ctx));
       gameRef.current.projectiles.forEach(p => p.draw(ctx));
@@ -512,6 +538,7 @@ const App: React.FC = () => {
           ctx.fillStyle = 'rgba(61, 220, 255, 0.05)';
           for(let i=0; i<GRID_SIZE; i++) {
               for(let j=0; j<GRID_SIZE; j++) {
+                  // Fix: Using gameRef.current as it is now defined
                   const occupied = gameRef.current.nodes.find(n => n.gridX === i && n.gridY === j);
                   if (!occupied) ctx.fillRect(i * TILE_SIZE + 2, j * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
               }
@@ -539,6 +566,7 @@ const App: React.FC = () => {
 
       // Ghost Preview
       if ((selectedIndices.length === 1 || reroutingNodeIndex !== null) && mousePos) {
+          // Fix: Using gameRef.current as it is now defined
           const card = reroutingNodeIndex !== null ? gameRef.current.nodes[reroutingNodeIndex].card : gameState.hand[selectedIndices[0]];
           const range = (card.stats?.range || 2) * TILE_SIZE;
           ctx.beginPath();
@@ -566,7 +594,8 @@ const App: React.FC = () => {
     };
     requestRef = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef);
-  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam]);
+    // Fix: Dependencies updated to include canvasRef and gameRef
+  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam, canvasRef, gameRef]);
 
   const canFuse = selectedIndices.length === 2 && 
                   gameState.hand[selectedIndices[0]]?.id === gameState.hand[selectedIndices[1]]?.id &&
@@ -594,6 +623,7 @@ const App: React.FC = () => {
     }
   }, [selectedIndices, gameState.hand, canFuse]);
 
+  // Fix: Using gameRef.current as it is now defined
   const selectedNode = selectedNodeIndex !== null ? gameRef.current.nodes[selectedNodeIndex] : null;
 
   return (
@@ -602,7 +632,7 @@ const App: React.FC = () => {
       {/* Zone 1: Kernel Diagnostics (Left Sidebar) */}
       <aside className="w-1/4 border-r border-[#1A2A40] flex flex-col bg-[#050814]/50 backdrop-blur-sm z-20">
         <header className="p-4 border-b border-[#1A2A40] flex justify-between items-center bg-[#1A2A40]/10">
-          <span className="font-black text-[#3DDCFF] italic text-xs tracking-wider">DIAG_ZONE_A</span>
+          <span className="font-black text-[#3DDCFF] italic text-xs tracking-wider uppercase">DIAG_ZONE_A</span>
           <div className="flex space-x-1">
             <div className={`w-2 h-2 rounded-full ${activeWave ? 'bg-red-500 animate-pulse' : 'bg-[#9CFF57]'}`}></div>
             <div className="w-2 h-2 rounded-full bg-[#3DDCFF]"></div>
@@ -675,10 +705,11 @@ const App: React.FC = () => {
 
       {/* Zone 2: Mainframe Grid (Center) */}
       <main className="flex-1 relative flex flex-col bg-[#02040a] items-center justify-center p-8 overflow-hidden">
-        <div className="absolute top-4 left-4 text-[10px] text-gray-800 pointer-events-none font-black uppercase tracking-widest">Sector_Grid_01 // 600x600_Mainframe</div>
+        <div className="absolute top-4 left-4 text-[10px] text-gray-800 pointer-events-none font-black uppercase tracking-widest italic">Sector_Grid_01 // 600x600_Mainframe</div>
         
         <div className="relative group">
           <div className="absolute -inset-1 bg-gradient-to-r from-[#3DDCFF]/20 to-[#9CFF57]/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+          {/* Fix: Added canvasRef to the canvas element */}
           <canvas 
             ref={canvasRef} 
             width={600} 
@@ -714,33 +745,44 @@ const App: React.FC = () => {
 
           {selectedNode && (
             <div 
-              className="absolute z-40 holographic-panel p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-56"
+              className="absolute z-40 holographic-panel p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-64"
               style={{
-                left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 224),
-                top: Math.max(selectedNode.gridY * TILE_SIZE - 20, 0)
+                left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 256),
+                top: Math.max(selectedNode.gridY * TILE_SIZE - 40, 0)
               }}
             >
               <div className="flex justify-between items-center mb-3 border-b border-[#9CFF57]/30 pb-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-white italic">NODE_METRICS</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#9CFF57] italic">PROT_SPEC: {selectedNode.card.name}</span>
                 <button onClick={() => setSelectedNodeIndex(null)} className="text-red-500 hover:text-white transition-colors">[X]</button>
               </div>
               
               <div className="space-y-2 font-mono text-[10px]">
-                <div className="flex justify-between text-gray-400">
-                  <span className="font-bold">BIT-DEPTH:</span>
-                  <span className="text-[#9CFF57] font-black">{selectedNode.damage} BD</span>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="flex flex-col">
+                    <span className="text-gray-500 font-bold uppercase tracking-tighter">BIT-DEPTH</span>
+                    <span className="text-[#9CFF57] font-black">{selectedNode.damage} BD</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-gray-500 font-bold uppercase tracking-tighter">LATENCY</span>
+                    <span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-gray-400">
-                  <span className="font-bold">LATENCY:</span>
-                  <span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span>
-                </div>
-                <div className="flex justify-between text-gray-400 border-t border-[#1A2A40] pt-1">
+                
+                <div className="flex justify-between text-gray-400 border-t border-[#1A2A40] pt-2">
                   <span className="font-bold">PURGED:</span>
                   <span className="text-white font-black">{selectedNode.killCount} PKTS</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
                   <span className="font-bold">UP-TIME:</span>
                   <span className="text-white font-black">{Math.floor(selectedNode.upTime)}s</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="font-bold">ORIGIN_COST:</span>
+                  <span className="text-[#3DDCFF] font-black">{selectedNode.card.cost} GB</span>
+                </div>
+                
+                <div className="mt-4 p-2 bg-[#9CFF57]/5 border-l-2 border-[#9CFF57] italic text-[9px] text-[#9CFF57]/80 leading-relaxed uppercase">
+                  {selectedNode.card.reasoningTip}
                 </div>
               </div>
 
@@ -922,7 +964,7 @@ const App: React.FC = () => {
                    <div className="text-white text-[10px] font-bold leading-tight uppercase tracking-tighter">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</div>
                    <div className="mt-2 text-gray-500 italic text-[9px] leading-relaxed">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div>
                 </div>
-                <div className="text-[9px] text-gray-700 font-black text-center tracking-widest">DIFF_SCALAR: X{gameState.lastGeminiResponse.wave_parameters.wave_difficulty}</div>
+                <div className="text-[9px] text-gray-700 font-black text-center tracking-widest uppercase">DIFF_SCALAR: X{gameState.lastGeminiResponse.wave_parameters.wave_difficulty}</div>
              </div>
            ) : (
              <div className="text-[10px] text-gray-700 animate-pulse italic">WAITING_FOR_WAVE_DATA...</div>
@@ -977,11 +1019,10 @@ const App: React.FC = () => {
                         <span className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">Latency</span>
                         <span className="text-[10px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}<span className="text-[7px] text-gray-500 ml-0.5">s</span></span>
                     </div>
-                    <div className="flex flex-col">
-                        <span className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">Range</span>
-                        <span className="text-[10px] text-yellow-500 font-black">{card.stats?.range || 0} <span className="text-[7px] text-gray-500">px</span></span>
-                    </div>
-                    <div className="flex items-center justify-end">
+                    
+                    <div className="col-span-2 mt-2 border-t border-[#1A2A40]/50 pt-1">
+                      <div className="flex justify-between items-center">
+                         <span className="text-[7px] text-[#9CFF57]/60 font-black tracking-widest uppercase italic">>> REASONING_TIP</span>
                          <button 
                             onClick={(e) => purgeCard(i, e)}
                             className="text-[7px] px-1.5 py-0.5 border border-red-900/40 text-red-900/60 hover:border-red-500 hover:text-red-500 transition-colors uppercase font-black tracking-tighter bg-red-900/5"
@@ -989,6 +1030,8 @@ const App: React.FC = () => {
                         >
                             [PURGE]
                         </button>
+                      </div>
+                      <p className="text-[8px] text-[#9CFF57]/50 font-bold mt-1 leading-tight uppercase truncate">{card.reasoningTip}</p>
                     </div>
                   </div>
 

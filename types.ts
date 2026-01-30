@@ -10,6 +10,7 @@ export interface Card {
   id: string;
   name: string;
   description: string;
+  reasoningTip: string; // Tactical advice snippet
   cost: number;
   type: CardType;
   rarity: 'COMMON' | 'UNCOMMON' | 'RARE' | 'LEGENDARY';
