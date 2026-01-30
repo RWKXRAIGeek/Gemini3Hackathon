@@ -37,6 +37,7 @@ const App: React.FC = () => {
   // UI states for transients
   const [floatingTexts, setFloatingTexts] = useState<{id: number, x: number, y: number, text: string}[]>([]);
   const [ramFlash, setRamFlash] = useState(false);
+  const [mousePos, setMousePos] = useState<Point | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef({
@@ -282,11 +283,8 @@ const App: React.FC = () => {
       let ramRefund = 0;
 
       if (!isBufferFull) {
-        // Refund 50% if returning to tray
         ramRefund = Math.floor(card.cost * 0.5);
         addLog(`[SYS] ${card.name.toUpperCase()} RECALLED. REFUNDING ${ramRefund} RAM (50%).`);
-        
-        // Trigger visual feedback
         spawnFloatingText(node.x, node.y, `+${ramRefund} RAM`);
         triggerRamFlash();
 
@@ -296,11 +294,8 @@ const App: React.FC = () => {
           energyPoints: Math.min(MAX_ENERGY, prev.energyPoints + ramRefund)
         };
       } else {
-        // Refund 80% if buffer is full (card is lost)
         ramRefund = Math.floor(card.cost * 0.8);
         addLog(`[SYS] BUFFER OVERFLOW: CONVERTING ${card.name.toUpperCase()} TO RAM (+${ramRefund} EP, 80%).`);
-        
-        // Trigger visual feedback
         spawnFloatingText(node.x, node.y, `+${ramRefund} RAM`);
         triggerRamFlash();
 
@@ -311,7 +306,6 @@ const App: React.FC = () => {
       }
     });
 
-    // Remove node from canvas state
     gameRef.current.nodes.splice(idx, 1);
     setSelectedNodeIndex(null);
   };
@@ -336,6 +330,8 @@ const App: React.FC = () => {
       const idx = selectedIndices[0];
       const card = gameState.hand[idx];
       if (card.type === CardType.SECURITY_NODE && gameState.energyPoints >= card.cost) {
+        const occupied = gameRef.current.nodes.find(n => n.gridX === x && n.gridY === y);
+        if (occupied) return;
         const newNode = new SecurityNode(x, y, card);
         gameRef.current.nodes.push(newNode);
         setGameState(prev => ({
@@ -353,6 +349,18 @@ const App: React.FC = () => {
     }
 
     setSelectedNodeIndex(null);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.floor((e.clientX - rect.left) / TILE_SIZE);
+    const y = Math.floor((e.clientY - rect.top) / TILE_SIZE);
+    setMousePos({ x, y });
+  };
+
+  const handleMouseLeave = () => {
+    setMousePos(null);
   };
 
   useEffect(() => {
@@ -436,6 +444,23 @@ const App: React.FC = () => {
       gameRef.current.nodes.forEach(n => n.draw(ctx));
       gameRef.current.projectiles.forEach(p => p.draw(ctx));
       
+      // Ghost Preview
+      if (selectedIndices.length === 1 && mousePos) {
+          const card = gameState.hand[selectedIndices[0]];
+          const range = (card.stats?.range || 2) * TILE_SIZE;
+          ctx.beginPath();
+          ctx.arc(mousePos.x * TILE_SIZE + TILE_SIZE/2, mousePos.y * TILE_SIZE + TILE_SIZE/2, range, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(61, 220, 255, 0.1)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(61, 220, 255, 0.3)';
+          ctx.stroke();
+
+          ctx.strokeStyle = 'rgba(156, 255, 87, 0.4)';
+          ctx.setLineDash([4, 4]);
+          ctx.strokeRect(mousePos.x * TILE_SIZE + 5, mousePos.y * TILE_SIZE + 5, 50, 50);
+          ctx.setLineDash([]);
+      }
+
       if (gameState.isScanning) {
         ctx.strokeStyle = '#3DDCFF';
         ctx.setLineDash([5, 15]);
@@ -448,7 +473,7 @@ const App: React.FC = () => {
     };
     requestRef = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef);
-  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession]);
+  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand]);
 
   const canFuse = selectedIndices.length === 2 && 
                   gameState.hand[selectedIndices[0]]?.id === gameState.hand[selectedIndices[1]]?.id &&
@@ -458,7 +483,6 @@ const App: React.FC = () => {
     if (!canFuse) return;
     const [i1, i2] = selectedIndices;
     const card1 = gameState.hand[i1];
-    
     const targetId = card1.fusionTargetId;
     if (!targetId) return;
     
@@ -485,7 +509,7 @@ const App: React.FC = () => {
       {/* Zone 1: Kernel Diagnostics (Left Sidebar) */}
       <aside className="w-1/4 border-r border-[#1A2A40] flex flex-col bg-[#050814]/50 backdrop-blur-sm z-20">
         <header className="p-4 border-b border-[#1A2A40] flex justify-between items-center bg-[#1A2A40]/10">
-          <span className="font-black text-[#3DDCFF] italic">DIAG_ZONE_A</span>
+          <span className="font-black text-[#3DDCFF] italic text-xs tracking-wider">DIAG_ZONE_A</span>
           <div className="flex space-x-1">
             <div className={`w-2 h-2 rounded-full ${activeWave ? 'bg-red-500 animate-pulse' : 'bg-[#9CFF57]'}`}></div>
             <div className="w-2 h-2 rounded-full bg-[#3DDCFF]"></div>
@@ -496,23 +520,23 @@ const App: React.FC = () => {
           <div className="space-y-4">
             <h1 className="text-xl font-black text-white tracking-tighter uppercase italic">Aegis_OS</h1>
             
-            <div className="p-3 bg-[#1A2A40]/20 border border-[#1A2A40] rounded shadow-inner">
+            <div className="p-3 holographic-panel rounded shadow-inner">
               <div className="flex justify-between text-[10px] mb-1 font-bold text-gray-400">
                 <span>CORE_INTEGRITY</span>
                 <span className={gameState.kernelHP < 30 ? "text-red-500 animate-pulse" : "text-[#9CFF57]"}>{gameState.kernelHP}%</span>
               </div>
-              <div className="w-full h-2 bg-black rounded-full overflow-hidden border border-[#1A2A40]">
+              <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden border border-[#1A2A40]">
                 <div className="h-full bg-[#3DDCFF] transition-all duration-700 shadow-[0_0_12px_#3DDCFF]" style={{width: `${gameState.kernelHP}%`}}></div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[10px]">
               <div className={`p-2 border border-[#1A2A40] bg-[#1A2A40]/10 transition-all ${ramFlash ? 'animate-ram-flash' : ''}`}>
-                <div className="text-gray-500 font-bold tracking-widest uppercase">ENERGY</div>
-                <div className="text-[#3DDCFF] font-black text-lg">{gameState.energyPoints}</div>
+                <div className="text-gray-500 font-bold tracking-widest uppercase">RAM_UNIT</div>
+                <div className="text-[#3DDCFF] font-black text-lg">{gameState.energyPoints}<span className="text-[10px] ml-1 opacity-50">GB</span></div>
               </div>
               <div className="p-2 border border-[#1A2A40] bg-[#1A2A40]/10">
-                <div className="text-gray-500 font-bold tracking-widest uppercase">WAVE</div>
+                <div className="text-gray-500 font-bold tracking-widest uppercase">THREAT_LVL</div>
                 <div className="text-[#9CFF57] font-black text-lg">{gameState.waveNumber}</div>
               </div>
             </div>
@@ -520,7 +544,7 @@ const App: React.FC = () => {
 
           <div className="flex-1 flex flex-col min-h-0 border-t border-[#1A2A40] pt-4">
             <div className="text-gray-600 text-[9px] mb-2 uppercase tracking-[0.3em] font-black italic">>> KERNEL_LOG_STREAM</div>
-            <div className="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-[#1A2A40]">
+            <div className="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-[#1A2A40] px-1">
               {gameState.statusLog.map((log, i) => (
                 <div key={i} className={`text-[10px] leading-relaxed break-all ${
                   log.includes('[AEGIS]') ? 'text-[#9CFF57]' : 
@@ -567,10 +591,11 @@ const App: React.FC = () => {
             width={600} 
             height={600} 
             className="relative border border-[#1A2A40] shadow-2xl bg-black cursor-crosshair rounded-sm"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
             onClick={handleCanvasClick}
           />
           
-          {/* Floating Neon Texts */}
           {floatingTexts.map(ft => (
               <div 
                 key={ft.id} 
@@ -581,7 +606,6 @@ const App: React.FC = () => {
               </div>
           ))}
 
-          {/* Neon-pulsing Targeting Reticle */}
           {selectedNode && (
             <div 
               className="absolute border-2 border-[#3DDCFF] animate-reticle pointer-events-none z-10"
@@ -595,31 +619,39 @@ const App: React.FC = () => {
             />
           )}
 
-          {/* Floating Diagnostic Panel */}
           {selectedNode && (
             <div 
-              className="absolute z-40 bg-[#050814]/90 border border-[#9CFF57]/50 p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-48"
+              className="absolute z-40 holographic-panel p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-52"
               style={{
-                left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 192),
+                left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 208),
                 top: Math.max(selectedNode.gridY * TILE_SIZE - 20, 0)
               }}
             >
               <div className="flex justify-between items-center mb-3 border-b border-[#9CFF57]/30 pb-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-white italic">NODE_DIAG</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-white italic">NODE_TELEMETRY</span>
                 <button onClick={() => setSelectedNodeIndex(null)} className="text-red-500 hover:text-white transition-colors">[X]</button>
               </div>
               
               <div className="space-y-2 font-mono text-[10px]">
-                <div className="text-gray-400 font-bold uppercase tracking-tighter">BIT-DEPTH: <span className="text-[#9CFF57]">{selectedNode.damage} DMG</span></div>
-                <div className="text-gray-400 font-bold uppercase tracking-tighter">LATENCY: <span className="text-[#3DDCFF]">{selectedNode.fireRate}hz</span></div>
-                <div className="text-gray-400 font-bold uppercase tracking-tighter">ADDR: <span className="text-white">0x{selectedNode.gridX}{selectedNode.gridY}</span></div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="font-bold">BIT-DEPTH:</span>
+                  <span className="text-[#9CFF57] font-black">{selectedNode.damage} BD</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="font-bold">LATENCY:</span>
+                  <span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span className="font-bold">SECTOR_ADDR:</span>
+                  <span className="text-white font-black">0x{selectedNode.gridX}{selectedNode.gridY}</span>
+                </div>
               </div>
 
               <button 
                 onClick={() => decompileNode(selectedNodeIndex!)}
-                className="w-full mt-4 py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase text-[9px] tracking-[0.2em] transition-all"
+                className="w-full mt-4 py-2 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase text-[9px] tracking-[0.2em] transition-all"
               >
-                DECOMPILE
+                DECOMPILE_NODE
               </button>
             </div>
           )}
@@ -633,7 +665,7 @@ const App: React.FC = () => {
           >
             <div className="scanline-overlay"></div>
             <div 
-              className="w-full h-full border-4 border-[#3DDCFF] bg-[#050814]/95 shadow-[0_0_50px_rgba(61,220,255,0.3)] relative p-8 flex flex-col overflow-hidden animate-slide-left flicker"
+              className="w-full h-full border-4 border-[#3DDCFF] holographic-panel shadow-[0_0_50px_rgba(61,220,255,0.3)] relative p-8 flex flex-col overflow-hidden animate-slide-left flicker"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] animate-pulse"></div>
@@ -667,7 +699,7 @@ const App: React.FC = () => {
                     {gameState.lastDiagnostic ? (
                       <div className="space-y-4 animate-in fade-in duration-700">
                         <div className="flex justify-between items-center bg-yellow-900/20 p-2 border border-yellow-500/30">
-                          <span className="text-yellow-500 font-black text-xs">WEAKEST_SECTOR:</span>
+                          <span className="text-yellow-500 font-black text-xs uppercase">Weakest_Sector:</span>
                           <span className="text-white font-black text-lg">{gameState.lastDiagnostic.weakest_sector}</span>
                         </div>
                         <div className="text-gray-300 text-sm leading-relaxed italic font-mono border-l-2 border-yellow-500 pl-4">
@@ -724,7 +756,7 @@ const App: React.FC = () => {
 
         {(!gameState.isGameStarted || gameState.kernelHP <= 0) && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
-            <div className="relative p-12 bg-[#050814]/90 border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all animate-monitor-on">
+            <div className="relative p-12 holographic-panel border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all animate-monitor-on">
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] flicker"></div>
               
               <div className="mb-8">
@@ -768,7 +800,7 @@ const App: React.FC = () => {
       {/* Zone 3: Exploit Kit & Strategy (Bottom/Right Area) */}
       <aside className="w-1/4 border-l border-[#1A2A40] bg-[#050814]/50 backdrop-blur-sm flex flex-col z-20">
         <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center">
-          <span className="font-black text-[#9CFF57] italic">KIT_ZONE_B</span>
+          <span className="font-black text-[#9CFF57] italic text-xs tracking-wider uppercase">KIT_ZONE_B</span>
           <span className="text-[10px] text-gray-600 font-mono">HAND: {gameState.hand.length}/5</span>
         </header>
 
@@ -776,15 +808,16 @@ const App: React.FC = () => {
            <div className="text-[9px] text-gray-500 font-black mb-3 tracking-widest uppercase italic">>> STRATEGIC_ADVISORY</div>
            {gameState.lastGeminiResponse ? (
              <div className="space-y-4 font-mono animate-monitor-on">
-                <div className="p-3 bg-[#3DDCFF]/5 border border-[#3DDCFF]/20 rounded relative">
+                <div className="p-3 bg-[#3DDCFF]/5 border border-[#3DDCFF]/20 rounded relative overflow-hidden">
+                   <div className="card-scanline opacity-10"></div>
                    <div className="text-[#3DDCFF] text-[10px] font-black uppercase mb-1 flex items-center">
                      <span className="w-1.5 h-1.5 bg-[#3DDCFF] rounded-full mr-2 shadow-[0_0_5px_#3DDCFF]"></span>
                      Performance_Gap
                    </div>
-                   <div className="text-white text-[11px] font-bold leading-tight uppercase">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</div>
-                   <div className="mt-2 text-gray-500 italic text-[10px] leading-relaxed">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div>
+                   <div className="text-white text-[10px] font-bold leading-tight uppercase tracking-tighter">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</div>
+                   <div className="mt-2 text-gray-500 italic text-[9px] leading-relaxed">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div>
                 </div>
-                <div className="text-[9px] text-gray-700 font-black text-center">X{gameState.lastGeminiResponse.wave_parameters.wave_difficulty} SCALAR</div>
+                <div className="text-[9px] text-gray-700 font-black text-center tracking-widest">DIFF_SCALAR: X{gameState.lastGeminiResponse.wave_parameters.wave_difficulty}</div>
              </div>
            ) : (
              <div className="text-[10px] text-gray-700 animate-pulse italic">WAITING_FOR_WAVE_DATA...</div>
@@ -798,34 +831,67 @@ const App: React.FC = () => {
             {selectedIndices.length > 0 && <span className="text-[#3DDCFF] font-black">[{selectedIndices.length}] READY</span>}
           </div>
           
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-[#1A2A40]">
+          <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-thin scrollbar-thumb-[#1A2A40]">
             {gameState.hand.map((card, i) => {
               const isSelected = selectedIndices.includes(i);
               const canAfford = gameState.energyPoints >= card.cost;
+              // Protocol naming for flavor
+              const protocolId = `PRT-${card.id.substring(0, 3).toUpperCase()}-0x${i}`;
+              
               return (
                 <div 
                   key={card.id + '-' + i}
                   onClick={() => toggleSelect(i)}
-                  className={`p-3 border-l-4 cursor-pointer transition-all duration-300 group relative transform hover:-translate-x-1 ${
-                    isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] translate-x-1" : "bg-[#1A2A40]/10 border-gray-800 hover:border-gray-500"
-                  } ${!canAfford ? 'opacity-40' : ''}`}
+                  className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${
+                    isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"
+                  } ${!canAfford ? 'opacity-40 grayscale' : ''}`}
                 >
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[8px] font-mono text-gray-600">ID:{card.id.substring(0,6)}</span>
-                    <button 
-                        onClick={(e) => purgeCard(i, e)}
-                        className="text-[8px] px-1.5 py-0.5 border border-red-900 text-red-900 hover:bg-red-900 hover:text-white transition-colors uppercase font-bold"
-                        title="Purge Card (-2 EP)"
-                    >
-                        [PURGE]
-                    </button>
-                    <span className={`text-[10px] font-black ${canAfford ? 'text-[#3DDCFF]' : 'text-red-900'}`}>{card.cost} EP</span>
+                  <div className="card-scanline"></div>
+                  
+                  {/* Card Header */}
+                  <div className="flex justify-between items-start mb-2 relative z-10">
+                    <span className="text-[9px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId}</span>
+                    <div className="flex items-center">
+                        <span className={`text-[12px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span>
+                        <span className="text-[8px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span>
+                    </div>
                   </div>
-                  <h3 className={`font-black text-xs group-hover:text-[#3DDCFF] transition-colors ${card.rarity === 'LEGENDARY' ? 'text-yellow-500' : 'text-[#9CFF57]'}`}>
-                    {card.name.toUpperCase()}
+
+                  {/* Name & Type */}
+                  <h3 className={`font-black text-[11px] mb-1 relative z-10 tracking-tight uppercase ${card.rarity === 'LEGENDARY' ? 'text-yellow-500' : 'text-[#9CFF57]'}`}>
+                    {card.name}
                   </h3>
-                  <p className="text-[9px] text-gray-500 leading-tight mt-1 h-8 overflow-hidden line-clamp-2">{card.description}</p>
-                  {isSelected && <div className="absolute top-1 right-1"><div className="w-2 h-2 bg-[#3DDCFF] rounded-full shadow-[0_0_8px_#3DDCFF]"/></div>}
+                  
+                  {/* Spec Grid */}
+                  <div className="grid grid-cols-2 gap-2 mt-3 relative z-10 border-t border-[#1A2A40] pt-2">
+                    <div className="flex flex-col">
+                        <span className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">Bit_Depth</span>
+                        <span className="text-[10px] text-white font-black">{card.stats?.damage || 0} <span className="text-[7px] text-gray-500">BD</span></span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">Latency</span>
+                        <span className="text-[10px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}<span className="text-[7px] text-gray-500 ml-0.5">s</span></span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">Range</span>
+                        <span className="text-[10px] text-yellow-500 font-black">{card.stats?.range || 0} <span className="text-[7px] text-gray-500">px</span></span>
+                    </div>
+                    <div className="flex items-center justify-end">
+                         <button 
+                            onClick={(e) => purgeCard(i, e)}
+                            className="text-[7px] px-1.5 py-0.5 border border-red-900/40 text-red-900/60 hover:border-red-500 hover:text-red-500 transition-colors uppercase font-black tracking-tighter bg-red-900/5"
+                            title="Purge Card (-2 EP)"
+                        >
+                            [PURGE]
+                        </button>
+                    </div>
+                  </div>
+
+                  {isSelected && (
+                      <div className="absolute top-0 right-0 w-8 h-8 pointer-events-none">
+                        <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[#3DDCFF] rounded-full shadow-[0_0_8px_#3DDCFF] animate-ping"/>
+                      </div>
+                  )}
                 </div>
               );
             })}
