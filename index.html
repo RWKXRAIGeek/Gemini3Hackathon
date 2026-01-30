@@ -8,13 +8,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --neon-green: #9CFF57;
+            --neon-cyan: #3DDCFF;
+            --terminal-bg: #050814;
+        }
+
         body {
-            background-color: #050814;
-            color: #9CFF57;
+            background-color: var(--terminal-bg);
+            color: var(--neon-green);
             font-family: 'Fira Code', monospace;
             margin: 0;
             overflow: hidden;
         }
+
+        /* CRT Scanline & Static Effect */
         .crt::before {
             content: " ";
             display: block;
@@ -23,49 +31,119 @@
             left: 0;
             bottom: 0;
             right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 50;
-            background-size: 100% 2px, 3px 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 3px, 3px 100%;
             pointer-events: none;
         }
-        .flicker {
-            animation: textFlicker 0.01s infinite alternate;
-        }
-        @keyframes textFlicker {
-            0% { opacity: 0.98; }
-            100% { opacity: 1; }
-        }
-        
-        /* Cyberpunk UI Animations */
+
+        /* Animations */
         @keyframes monitorOn {
-            0% { transform: scaleY(0.005) scaleX(0); opacity: 0; }
+            0% { transform: scaleY(0.005) scaleX(0); opacity: 0; filter: brightness(5); }
             50% { transform: scaleY(0.005) scaleX(1); opacity: 0.8; }
-            70% { transform: scaleY(1) scaleX(1); opacity: 1; }
-            80% { transform: scaleY(1) scaleX(1); opacity: 0.5; }
-            100% { transform: scaleY(1) scaleX(1); opacity: 1; }
-        }
-        .animate-monitor-on {
-            animation: monitorOn 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+            70% { transform: scaleY(1.05) scaleX(1); opacity: 1; }
+            80% { transform: scaleY(0.95) scaleX(1); }
+            100% { transform: scaleY(1) scaleX(1); opacity: 1; filter: brightness(1); }
         }
 
-        @keyframes slideLeft {
-            0% { transform: translateX(-100%); opacity: 0; }
-            100% { transform: translateX(0); opacity: 1; }
+        @keyframes slideInLeft {
+            0% { transform: translateX(-100%) skewX(-5deg); opacity: 0; }
+            80% { transform: translateX(2%) skewX(1deg); opacity: 1; }
+            100% { transform: translateX(0) skewX(0); opacity: 1; }
         }
+
+        @keyframes glitch {
+            0% { clip: rect(44px, 450px, 56px, 0); transform: translate(-2px, 2px); }
+            10% { clip: rect(62px, 450px, 12px, 0); transform: translate(2px, -2px); }
+            20% { clip: rect(34px, 450px, 98px, 0); transform: translate(-2px, 2px); }
+            30% { clip: rect(82px, 450px, 44px, 0); transform: translate(2px, -2px); }
+            40% { clip: rect(12px, 450px, 62px, 0); transform: translate(-2px, 2px); }
+            50% { clip: rect(98px, 450px, 34px, 0); transform: translate(2px, -2px); }
+            100% { clip: rect(0, 0, 0, 0); transform: translate(0, 0); }
+        }
+
+        @keyframes pulseBorder {
+            0% { border-color: rgba(61, 220, 255, 0.2); box-shadow: 0 0 0px rgba(61, 220, 255, 0); }
+            50% { border-color: rgba(61, 220, 255, 0.8); box-shadow: 0 0 15px rgba(61, 220, 255, 0.4); }
+            100% { border-color: rgba(61, 220, 255, 0.2); box-shadow: 0 0 0px rgba(61, 220, 255, 0); }
+        }
+
+        @keyframes reticlePulse {
+            0% { transform: scale(1); opacity: 0.4; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.4; }
+        }
+
+        @keyframes dissolve {
+            0% { opacity: 1; transform: scale(1); filter: brightness(2) blur(0px); }
+            100% { opacity: 0; transform: scale(1.5); filter: brightness(5) blur(4px); }
+        }
+
+        @keyframes driftUpFade {
+            0% { transform: translateY(0); opacity: 0; }
+            20% { opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+
+        @keyframes ramRechargeFlash {
+            0% { background-color: rgba(61, 220, 255, 0); box-shadow: 0 0 0px transparent; }
+            50% { background-color: rgba(61, 220, 255, 0.4); box-shadow: 0 0 20px var(--neon-cyan); }
+            100% { background-color: rgba(61, 220, 255, 0); box-shadow: 0 0 0px transparent; }
+        }
+
+        .animate-monitor-on {
+            animation: monitorOn 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+
         .animate-slide-left {
-            animation: slideLeft 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: slideInLeft 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-reticle {
+            animation: reticlePulse 1.5s infinite ease-in-out;
+        }
+
+        .animate-dissolve {
+            animation: dissolve 0.5s forwards ease-out;
+        }
+
+        .animate-drift-up {
+            animation: driftUpFade 1.2s forwards ease-out;
+        }
+
+        .animate-ram-flash {
+            animation: ramRechargeFlash 0.6s ease-out;
+        }
+
+        .glitch-hover:hover {
+            animation: glitch 0.3s cubic-bezier(.25,.46,.45,.94) both infinite;
+        }
+
+        .flicker {
+            animation: textFlicker 0.05s infinite alternate;
+        }
+
+        .pulse-breach {
+            animation: pulseBorder 2s infinite ease-in-out;
+        }
+
+        @keyframes textFlicker {
+            0% { opacity: 0.95; filter: contrast(1.1); }
+            100% { opacity: 1; filter: contrast(1); }
         }
 
         @keyframes scanline {
-            0% { top: -10%; }
-            100% { top: 110%; }
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
         }
-        .scanline-effect {
+
+        .scanline-overlay {
             position: absolute;
-            width: 100%;
-            height: 100px;
-            background: linear-gradient(to bottom, transparent, rgba(61, 220, 255, 0.1), transparent);
-            animation: scanline 4s linear infinite;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent, rgba(61, 220, 255, 0.05), transparent);
+            height: 20%;
+            animation: scanline 6s linear infinite;
             pointer-events: none;
             z-index: 10;
         }
