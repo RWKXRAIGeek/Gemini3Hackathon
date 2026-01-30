@@ -15,6 +15,7 @@ const App: React.FC = () => {
     discard: [],
     isProcessing: false,
     isScanning: false,
+    isGameStarted: false,
     statusLog: ['[SYS_INIT] AEGIS OS BOOTING...', '[SYS_INIT] KERNEL CORE ACTIVE.'],
     history: JSON.parse(localStorage.getItem('aegis_history') || '[]'),
   });
@@ -40,9 +41,19 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    checkForRedemption();
-    drawHand();
-  }, []);
+    if (gameState.isGameStarted) {
+      checkForRedemption();
+      drawHand();
+    }
+  }, [gameState.isGameStarted]);
+
+  const startGame = () => {
+    setGameState(prev => ({ ...prev, isGameStarted: true }));
+  };
+
+  const rebootSystem = () => {
+    window.location.reload();
+  };
 
   const checkForRedemption = async () => {
     const recentHistory = gameState.history.slice(-3);
@@ -210,7 +221,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !gameState.isGameStarted) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
     let requestRef: number;
@@ -291,7 +302,7 @@ const App: React.FC = () => {
     };
     requestRef = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef);
-  }, [activeWave, endWave, gameState.isScanning, saveSession]);
+  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession]);
 
   const canFuse = selectedIndices.length === 2 && 
                   gameState.hand[selectedIndices[0]].id === gameState.hand[selectedIndices[1]].id &&
@@ -305,7 +316,7 @@ const App: React.FC = () => {
         <header className="p-4 border-b border-[#1A2A40] flex justify-between items-center bg-[#1A2A40]/10">
           <span className="font-black text-[#3DDCFF] italic">DIAG_ZONE_A</span>
           <div className="flex space-x-1">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+            <div className={`w-2 h-2 rounded-full ${activeWave ? 'bg-red-500 animate-pulse' : 'bg-[#9CFF57]'}`}></div>
             <div className="w-2 h-2 rounded-full bg-[#3DDCFF]"></div>
           </div>
         </header>
@@ -326,11 +337,11 @@ const App: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-2 text-[10px]">
               <div className="p-2 border border-[#1A2A40] bg-[#1A2A40]/10">
-                <div className="text-gray-500">ENERGY_FLUX</div>
+                <div className="text-gray-500 font-bold tracking-widest uppercase">ENERGY</div>
                 <div className="text-[#3DDCFF] font-black text-lg">{gameState.energyPoints}</div>
               </div>
               <div className="p-2 border border-[#1A2A40] bg-[#1A2A40]/10">
-                <div className="text-gray-500">CURR_WAVE</div>
+                <div className="text-gray-500 font-bold tracking-widest uppercase">WAVE</div>
                 <div className="text-[#9CFF57] font-black text-lg">{gameState.waveNumber}</div>
               </div>
             </div>
@@ -355,7 +366,7 @@ const App: React.FC = () => {
         <footer className="p-4 border-t border-[#1A2A40] bg-[#1A2A40]/5 space-y-2">
            <button 
             onClick={runVisualDiagnostic}
-            disabled={activeWave || gameState.isScanning}
+            disabled={activeWave || gameState.isScanning || !gameState.isGameStarted}
             className={`w-full py-2 border font-black text-[9px] tracking-[0.2em] transition-all uppercase rounded ${
               gameState.isScanning ? "border-yellow-600 text-yellow-600 animate-pulse" : "border-[#1A2A40] text-gray-500 hover:text-[#3DDCFF] hover:border-[#3DDCFF]"
             }`}
@@ -364,9 +375,9 @@ const App: React.FC = () => {
           </button>
           <button 
             onClick={startWave}
-            disabled={activeWave || gameState.isProcessing}
+            disabled={activeWave || gameState.isProcessing || !gameState.isGameStarted}
             className={`w-full py-4 border-2 font-black text-xs tracking-[0.3em] transition-all uppercase rounded ${
-              activeWave || gameState.isProcessing ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10 shadow-[0_0_15px_rgba(61,220,255,0.2)]"
+              activeWave || gameState.isProcessing || !gameState.isGameStarted ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10 shadow-[0_0_15px_rgba(61,220,255,0.2)]"
             }`}
           >
             {gameState.isProcessing ? "REASONING..." : "INIT_BREACH"}
@@ -411,7 +422,44 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Global States: Processing / Game Over */}
+        {/* Start / End Overlay Menu */}
+        {(!gameState.isGameStarted || gameState.kernelHP <= 0) && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
+            <div className="relative p-12 bg-[#050814]/90 border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all">
+              <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] flicker"></div>
+              
+              <div className="mb-8">
+                <h2 className={`text-5xl font-black italic tracking-tighter uppercase mb-2 flicker ${gameState.kernelHP <= 0 ? 'text-red-500 shadow-red-500' : 'text-[#3DDCFF]'}`}>
+                  {gameState.kernelHP <= 0 ? 'BREACH_CRITICAL' : 'CIRCUIT_BREACH'}
+                </h2>
+                <div className="text-[10px] text-gray-500 tracking-[0.8em] font-black uppercase border-y border-[#1A2A40] py-2">
+                  Aegis_OS // Strategic_Defense_Kernel
+                </div>
+              </div>
+
+              {gameState.kernelHP <= 0 && (
+                <div className="mb-8 p-4 bg-red-900/10 border border-red-500/20 text-red-400 text-[10px] font-mono italic">
+                  KERNEL_PANIC: The mainframe core was overwhelmed by a recursive infection loop. System integrity zeroed.
+                </div>
+              )}
+
+              <button 
+                onClick={gameState.kernelHP <= 0 ? rebootSystem : startGame}
+                className={`group relative w-full py-6 font-black text-sm tracking-[0.5em] uppercase transition-all overflow-hidden border-2 ${
+                  gameState.kernelHP <= 0 ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10'
+                }`}
+              >
+                <span className="relative z-10">{gameState.kernelHP <= 0 ? 'REBOOT_KERNEL' : 'INITIALIZE_SYSTEM'}</span>
+                <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:left-full transition-all duration-700"></div>
+              </button>
+
+              <div className="mt-6 text-[8px] text-gray-700 tracking-widest uppercase font-black italic">
+                Secure_Link_Established // 128-Bit_Encrypted
+              </div>
+            </div>
+          </div>
+        )}
+
         {gameState.isProcessing && (
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-30 flex items-center justify-center">
             <div className="p-8 border-y-2 border-[#3DDCFF]/30 w-full flex flex-col items-center bg-[#050814]/50">
@@ -420,28 +468,13 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-
-        {gameState.kernelHP <= 0 && (
-          <div className="absolute inset-0 bg-black/95 z-50 flex flex-col items-center justify-center text-[#FF3B3B] font-mono">
-             <div className="p-12 border-4 border-[#FF3B3B] bg-[#1A0000] shadow-[0_0_100px_rgba(255,59,59,0.3)] flex flex-col items-center">
-                <div className="text-8xl font-black mb-2 italic tracking-tighter">HALTED</div>
-                <div className="text-sm tracking-[0.5em] opacity-80 mb-12 border-t border-[#FF3B3B]/30 pt-4">KERNEL_PANIC: 0xDEADBEEF</div>
-                <button 
-                  onClick={() => window.location.reload()} 
-                  className="px-16 py-5 border-2 border-[#FF3B3B] text-[#FF3B3B] hover:bg-[#FF3B3B] hover:text-black font-black uppercase tracking-[0.4em] transition-all"
-                >
-                  REBOOT_SYSTEM
-                </button>
-             </div>
-          </div>
-        )}
       </main>
 
       {/* Zone 3: Exploit Kit & Strategy (Bottom/Right Area) */}
       <aside className="w-1/4 border-l border-[#1A2A40] bg-[#050814]/50 backdrop-blur-sm flex flex-col z-20">
         <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center">
           <span className="font-black text-[#9CFF57] italic">KIT_ZONE_B</span>
-          <span className="text-[10px] text-gray-600 font-mono">HAND_IDX: {gameState.hand.length}/5</span>
+          <span className="text-[10px] text-gray-600 font-mono">HAND: {gameState.hand.length}/5</span>
         </header>
 
         {/* Strategy Section */}

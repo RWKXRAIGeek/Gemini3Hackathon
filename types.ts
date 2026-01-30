@@ -70,6 +70,7 @@ export interface GameState {
   discard: Card[];
   isProcessing: boolean;
   isScanning: boolean;
+  isGameStarted: boolean;
   statusLog: string[];
   lastGeminiResponse?: AegisResponse;
   lastDiagnostic?: VisualDiagnosticResponse;
