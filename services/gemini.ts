@@ -17,21 +17,23 @@ export const getAegisReasoning = async (
       - Energy Points: ${gameState.energyPoints}
       - Security Nodes Online: ${nodesCount}
       - Malware Packets Purged: ${enemiesDefeated}
-      - Hand Density: ${gameState.hand.length} cards
       - Exploit Kit Inventory: ${gameState.deck.length + gameState.discard.length} cards
 
-      Analyze the strategy gap. If the player is struggling (HP < 50%), offer Redemption Cards. 
-      If the player is dominating (HP > 90% at Wave 5+), increase Malware Encryption Strength.
+      STRATEGIC DIRECTIVE:
+      - If player has duplicate cards, encourage FUSION into (Quantum Gate, Deep Packet Inspector, Neural Tempest).
+      - If swarm density is high, suggest Neural Shock or Intrusion Detection.
+      - If boss/armored packets are detected, suggest Synapse Fryer or Corrosive Script.
+      - Analyze the performance and provide a tactical cyberpunk response.
     `;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: `You are the Aegis OS Kernel, a tactical defensive AI. 
-        Analyze the game state JSON and return a strategic response. 
-        Tone: Cold, analytical, cyberpunk, terminal-style.
-        Only output valid JSON.`,
+        systemInstruction: `You are the Aegis OS Kernel. 
+        Analyze the game state and return a strategic JSON response. 
+        Role: Tactical Reasoner. Focus on "Power Compression" via Fusion logic.
+        Valid Card IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -80,23 +82,6 @@ export const getAegisReasoning = async (
     return result as AegisResponse;
   } catch (error) {
     console.error("Aegis Kernel Error:", error);
-    // Fallback logic
-    return {
-      system_status: {
-        intensity_band: 'SWEET-SPOT',
-        calculated_threat_level: 0.5,
-        malware_encryption_strength: 'Medium'
-      },
-      wave_parameters: {
-        wave_difficulty: 1.0,
-        malware_type: 'STANDARD_PACKET',
-        stat_multipliers: { hp: 1.0, speed: 1.0 }
-      },
-      exploit_kit_update: {
-        suggested_cards_ids: ['node_laser_basic', 'node_emp_pulse', 'patch_repair'],
-        reasoning: 'API_CONNECTION_INTERRUPTED... DEPLOYING DEFAULT KIT.'
-      },
-      kernel_log_message: 'CONNECTION STABILITY COMPROMISED. LOCAL PROTOCOLS ENGAGED.'
-    };
+    return null;
   }
 };

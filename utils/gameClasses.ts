@@ -8,11 +8,13 @@ export class MalwarePacket {
   hp: number;
   maxHp: number;
   speed: number;
+  baseSpeed: number;
   path: Point[];
   pathIndex: number = 0;
   isDead: boolean = false;
   radius: number = 10;
   type: string;
+  slowFactor: number = 1;
 
   constructor(path: Point[], stats: { hp: number, speed: number }, type: string = 'STANDARD') {
     this.path = path;
@@ -20,12 +22,17 @@ export class MalwarePacket {
     this.y = path[0].y * TILE_SIZE + TILE_SIZE / 2;
     this.maxHp = stats.hp;
     this.hp = stats.hp;
+    this.baseSpeed = stats.speed;
     this.speed = stats.speed;
     this.type = type;
   }
 
   update(deltaTime: number) {
-    if (this.pathIndex >= this.path.length - 1) return true; // Reached end
+    if (this.pathIndex >= this.path.length - 1) return true;
+
+    const currentSpeed = this.baseSpeed * this.slowFactor;
+    // Reset slow factor for next frame
+    this.slowFactor = 1;
 
     const target = this.path[this.pathIndex + 1];
     const tx = target.x * TILE_SIZE + TILE_SIZE / 2;
@@ -35,29 +42,28 @@ export class MalwarePacket {
     const dy = ty - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist < this.speed) {
+    if (dist < currentSpeed) {
       this.x = tx;
       this.y = ty;
       this.pathIndex++;
     } else {
-      this.x += (dx / dist) * this.speed;
-      this.y += (dy / dist) * this.speed;
+      this.x += (dx / dist) * currentSpeed;
+      this.y += (dy / dist) * currentSpeed;
     }
     return false;
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = '#FF3B3B';
+    ctx.fillStyle = this.slowFactor < 1 ? '#3DDCFF' : '#FF3B3B';
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // HP Bar
-    const barWidth = 20;
-    ctx.fillStyle = '#330000';
-    ctx.fillRect(this.x - 10, this.y - 15, barWidth, 4);
+    const barWidth = 24;
+    ctx.fillStyle = '#1A0000';
+    ctx.fillRect(this.x - 12, this.y - 18, barWidth, 4);
     ctx.fillStyle = '#FF3B3B';
-    ctx.fillRect(this.x - 10, this.y - 15, (this.hp / this.maxHp) * barWidth, 4);
+    ctx.fillRect(this.x - 12, this.y - 18, (this.hp / this.maxHp) * barWidth, 4);
   }
 }
 
@@ -72,6 +78,7 @@ export class SecurityNode {
   damage: number;
   fireRate: number;
   type: string;
+  slowPower: number;
 
   constructor(gx: number, gy: number, card: Card) {
     this.gridX = gx;
@@ -80,15 +87,39 @@ export class SecurityNode {
     this.y = gy * TILE_SIZE + TILE_SIZE / 2;
     this.card = card;
     this.range = (card.stats?.range || 2) * TILE_SIZE;
-    this.damage = card.stats?.damage || 10;
+    this.damage = card.stats?.damage || 0;
     this.fireRate = card.stats?.fireRate || 1;
     this.type = card.stats?.nodeType || 'LASER';
+    this.slowPower = card.stats?.slowPower || 0;
+  }
+
+  update(deltaTime: number, enemies: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
+    // Apply area effects like slowing
+    if (this.slowPower > 0) {
+      enemies.forEach(e => {
+        const dist = Math.sqrt((e.x - this.x)**2 + (e.y - this.y)**2);
+        if (dist < this.range) {
+          e.slowFactor = Math.min(e.slowFactor, 1 - this.slowPower);
+        }
+      });
+    }
+
+    if (this.damage <= 0) return;
+
+    if (this.cooldown > 0) {
+      this.cooldown -= deltaTime;
+    } else {
+      const target = this.findTarget(enemies);
+      if (target) {
+        fireCallback(this, target);
+        this.cooldown = 1 / this.fireRate;
+      }
+    }
   }
 
   findTarget(enemies: MalwarePacket[]): MalwarePacket | null {
     let closest: MalwarePacket | null = null;
     let minDist = Infinity;
-
     for (const enemy of enemies) {
       const dx = enemy.x - this.x;
       const dy = enemy.y - this.y;
@@ -101,30 +132,15 @@ export class SecurityNode {
     return closest;
   }
 
-  update(deltaTime: number, enemies: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
-    if (this.cooldown > 0) {
-      this.cooldown -= deltaTime;
-    } else {
-      const target = this.findTarget(enemies);
-      if (target) {
-        fireCallback(this, target);
-        this.cooldown = 1 / this.fireRate;
-      }
-    }
-  }
-
   draw(ctx: CanvasRenderingContext2D) {
     ctx.strokeStyle = '#3DDCFF';
     ctx.lineWidth = 2;
-    ctx.strokeRect(this.x - 15, this.y - 15, 30, 30);
+    ctx.strokeRect(this.x - 18, this.y - 18, 36, 36);
     
-    // Icon based on type
     ctx.fillStyle = '#3DDCFF';
-    ctx.font = '10px JetBrains Mono';
+    ctx.font = 'bold 12px JetBrains Mono';
     ctx.textAlign = 'center';
-    ctx.fillText(this.type[0], this.x, this.y + 4);
-
-    // Range Circle (optional highlight)
+    ctx.fillText(this.type.substring(0, 3), this.x, this.y + 4);
   }
 }
 
@@ -132,7 +148,7 @@ export class FirewallBuffer {
   x: number;
   y: number;
   target: MalwarePacket;
-  speed: number = 5;
+  speed: number = 8;
   damage: number;
   isDead: boolean = false;
 
@@ -144,11 +160,7 @@ export class FirewallBuffer {
   }
 
   update() {
-    if (this.target.hp <= 0) {
-      this.isDead = true;
-      return;
-    }
-
+    if (this.target.hp <= 0) { this.isDead = true; return; }
     const dx = this.target.x - this.x;
     const dy = this.target.y - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -163,9 +175,9 @@ export class FirewallBuffer {
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = '#3DDCFF';
+    ctx.fillStyle = '#9CFF57';
     ctx.beginPath();
-    ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
     ctx.fill();
   }
 }

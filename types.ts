@@ -2,7 +2,8 @@
 export enum CardType {
   SECURITY_NODE = 'SECURITY_NODE',
   TACTICAL_PATCH = 'TACTICAL_PATCH',
-  SYSTEM_OVERCLOCK = 'SYSTEM_OVERCLOCK'
+  SYSTEM_OVERCLOCK = 'SYSTEM_OVERCLOCK',
+  FIREWALL = 'FIREWALL'
 }
 
 export interface Card {
@@ -12,11 +13,13 @@ export interface Card {
   cost: number;
   type: CardType;
   rarity: 'COMMON' | 'UNCOMMON' | 'RARE' | 'LEGENDARY';
+  fusionTargetId?: string;
   stats?: {
     damage?: number;
     range?: number;
     fireRate?: number;
     nodeType?: string;
+    slowPower?: number;
   };
 }
 
