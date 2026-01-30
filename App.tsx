@@ -34,10 +34,14 @@ const App: React.FC = () => {
   const [showRedemption, setShowRedemption] = useState(false);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState<number | null>(null);
   
+  // Migration Mode State
+  const [reroutingNodeIndex, setReroutingNodeIndex] = useState<number | null>(null);
+  
   // UI states for transients
   const [floatingTexts, setFloatingTexts] = useState<{id: number, x: number, y: number, text: string}[]>([]);
   const [ramFlash, setRamFlash] = useState(false);
   const [mousePos, setMousePos] = useState<Point | null>(null);
+  const [rerouteBeam, setRerouteBeam] = useState<{from: Point, to: Point, opacity: number} | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef({
@@ -54,6 +58,22 @@ const App: React.FC = () => {
     lastFrameTime: 0,
     difficultyMultiplier: 1.0
   });
+
+  // Handle Escape to cancel migration
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (reroutingNodeIndex !== null) {
+          addLog('[SYS] REROUTE SEQUENCE ABORTED.');
+          setReroutingNodeIndex(null);
+        }
+        if (selectedNodeIndex !== null) setSelectedNodeIndex(null);
+        if (selectedIndices.length > 0) setSelectedIndices([]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [reroutingNodeIndex, selectedNodeIndex, selectedIndices]);
 
   const drawHand = useCallback((overridingHand?: Card[]) => {
     setGameState(prev => {
@@ -105,6 +125,7 @@ const App: React.FC = () => {
     setSelectedIndices([]);
     setShowRedemption(false);
     setSelectedNodeIndex(null);
+    setReroutingNodeIndex(null);
     setFloatingTexts([]);
     drawHand([]);
   }, [drawHand]);
@@ -191,6 +212,7 @@ const App: React.FC = () => {
   const endWave = useCallback(async () => {
     setActiveWave(false);
     setSelectedNodeIndex(null);
+    setReroutingNodeIndex(null);
     setGameState(prev => ({ ...prev, isProcessing: true }));
     addLog('[SYS] BREACH EVENT CONCLUDED. ANALYZING DATA...');
 
@@ -232,6 +254,7 @@ const App: React.FC = () => {
 
   const toggleSelect = (idx: number) => {
     setSelectedNodeIndex(null);
+    setReroutingNodeIndex(null);
     setSelectedIndices(prev => {
       if (prev.includes(idx)) return prev.filter(i => i !== idx);
       if (prev.length >= 1) return [idx];
@@ -308,6 +331,13 @@ const App: React.FC = () => {
 
     gameRef.current.nodes.splice(idx, 1);
     setSelectedNodeIndex(null);
+    setReroutingNodeIndex(null);
+  };
+
+  const initReroute = (idx: number) => {
+    setReroutingNodeIndex(idx);
+    setSelectedNodeIndex(null);
+    addLog('[SYS] INITIATING DATA REROUTE... SELECT DESTINATION PORT.');
   };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
@@ -317,6 +347,39 @@ const App: React.FC = () => {
     const y = Math.floor((e.clientY - rect.top) / TILE_SIZE);
     
     if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
+
+    // Commit Reroute
+    if (reroutingNodeIndex !== null) {
+      const node = gameRef.current.nodes[reroutingNodeIndex];
+      const cost = Math.max(1, Math.floor(node.card.cost * 0.1));
+      
+      const occupied = gameRef.current.nodes.find(n => n.gridX === x && n.gridY === y);
+      if (occupied) {
+        addLog('[ERROR] PORT OCCUPIED. REROUTE CANCELLED.');
+        setReroutingNodeIndex(null);
+        return;
+      }
+
+      if (gameState.energyPoints < cost) {
+        addLog('[ERROR] INSUFFICIENT RAM FOR REROUTE.');
+        setReroutingNodeIndex(null);
+        return;
+      }
+
+      // Execute movement
+      const oldPos = { x: node.x, y: node.y };
+      node.setPosition(x, y);
+      setRerouteBeam({ from: oldPos, to: { x: node.x, y: node.y }, opacity: 1 });
+      setTimeout(() => setRerouteBeam(null), 500);
+
+      setGameState(prev => ({
+        ...prev,
+        energyPoints: prev.energyPoints - cost
+      }));
+      addLog(`[SYS] REROUTE COMPLETE: 0x${x}${y} ACTIVE (-${cost} GB)`);
+      setReroutingNodeIndex(null);
+      return;
+    }
 
     const nodeIdx = gameRef.current.nodes.findIndex(n => n.gridX === x && n.gridY === y);
     if (nodeIdx !== -1) {
@@ -433,7 +496,7 @@ const App: React.FC = () => {
         
         gameRef.current.nodes.forEach(n => {
           n.update(dt, gameRef.current.enemies, (node, target) => {
-            gameRef.current.projectiles.push(new FirewallBuffer(node.x, node.y, target, node.damage));
+            gameRef.current.projectiles.push(new FirewallBuffer(node.x, node.y, target, node.damage, node));
           });
         });
         
@@ -444,9 +507,39 @@ const App: React.FC = () => {
       gameRef.current.nodes.forEach(n => n.draw(ctx));
       gameRef.current.projectiles.forEach(p => p.draw(ctx));
       
+      // Reroute Highlights
+      if (reroutingNodeIndex !== null) {
+          ctx.fillStyle = 'rgba(61, 220, 255, 0.05)';
+          for(let i=0; i<GRID_SIZE; i++) {
+              for(let j=0; j<GRID_SIZE; j++) {
+                  const occupied = gameRef.current.nodes.find(n => n.gridX === i && n.gridY === j);
+                  if (!occupied) ctx.fillRect(i * TILE_SIZE + 2, j * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+              }
+          }
+      }
+
+      // Reroute Beam Animation
+      if (rerouteBeam) {
+        ctx.strokeStyle = `rgba(156, 255, 87, ${rerouteBeam.opacity})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(rerouteBeam.from.x, rerouteBeam.from.y);
+        ctx.lineTo(rerouteBeam.to.x, rerouteBeam.to.y);
+        ctx.stroke();
+        
+        // Particle stream effect
+        for(let i=0; i<5; i++) {
+          const t = (Date.now() / 200 % 1) + (i / 5);
+          const px = rerouteBeam.from.x + (rerouteBeam.to.x - rerouteBeam.from.x) * (t % 1);
+          const py = rerouteBeam.from.y + (rerouteBeam.to.y - rerouteBeam.from.y) * (t % 1);
+          ctx.fillStyle = '#3DDCFF';
+          ctx.fillRect(px - 2, py - 2, 4, 4);
+        }
+      }
+
       // Ghost Preview
-      if (selectedIndices.length === 1 && mousePos) {
-          const card = gameState.hand[selectedIndices[0]];
+      if ((selectedIndices.length === 1 || reroutingNodeIndex !== null) && mousePos) {
+          const card = reroutingNodeIndex !== null ? gameRef.current.nodes[reroutingNodeIndex].card : gameState.hand[selectedIndices[0]];
           const range = (card.stats?.range || 2) * TILE_SIZE;
           ctx.beginPath();
           ctx.arc(mousePos.x * TILE_SIZE + TILE_SIZE/2, mousePos.y * TILE_SIZE + TILE_SIZE/2, range, 0, Math.PI * 2);
@@ -455,7 +548,7 @@ const App: React.FC = () => {
           ctx.strokeStyle = 'rgba(61, 220, 255, 0.3)';
           ctx.stroke();
 
-          ctx.strokeStyle = 'rgba(156, 255, 87, 0.4)';
+          ctx.strokeStyle = reroutingNodeIndex !== null ? 'rgba(61, 220, 255, 0.6)' : 'rgba(156, 255, 87, 0.4)';
           ctx.setLineDash([4, 4]);
           ctx.strokeRect(mousePos.x * TILE_SIZE + 5, mousePos.y * TILE_SIZE + 5, 50, 50);
           ctx.setLineDash([]);
@@ -473,7 +566,7 @@ const App: React.FC = () => {
     };
     requestRef = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef);
-  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand]);
+  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam]);
 
   const canFuse = selectedIndices.length === 2 && 
                   gameState.hand[selectedIndices[0]]?.id === gameState.hand[selectedIndices[1]]?.id &&
@@ -621,14 +714,14 @@ const App: React.FC = () => {
 
           {selectedNode && (
             <div 
-              className="absolute z-40 holographic-panel p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-52"
+              className="absolute z-40 holographic-panel p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-56"
               style={{
-                left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 208),
+                left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 224),
                 top: Math.max(selectedNode.gridY * TILE_SIZE - 20, 0)
               }}
             >
               <div className="flex justify-between items-center mb-3 border-b border-[#9CFF57]/30 pb-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-white italic">NODE_TELEMETRY</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-white italic">NODE_METRICS</span>
                 <button onClick={() => setSelectedNodeIndex(null)} className="text-red-500 hover:text-white transition-colors">[X]</button>
               </div>
               
@@ -641,18 +734,30 @@ const App: React.FC = () => {
                   <span className="font-bold">LATENCY:</span>
                   <span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span>
                 </div>
+                <div className="flex justify-between text-gray-400 border-t border-[#1A2A40] pt-1">
+                  <span className="font-bold">PURGED:</span>
+                  <span className="text-white font-black">{selectedNode.killCount} PKTS</span>
+                </div>
                 <div className="flex justify-between text-gray-400">
-                  <span className="font-bold">SECTOR_ADDR:</span>
-                  <span className="text-white font-black">0x{selectedNode.gridX}{selectedNode.gridY}</span>
+                  <span className="font-bold">UP-TIME:</span>
+                  <span className="text-white font-black">{Math.floor(selectedNode.upTime)}s</span>
                 </div>
               </div>
 
-              <button 
-                onClick={() => decompileNode(selectedNodeIndex!)}
-                className="w-full mt-4 py-2 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase text-[9px] tracking-[0.2em] transition-all"
-              >
-                DECOMPILE_NODE
-              </button>
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                <button 
+                    onClick={() => initReroute(selectedNodeIndex!)}
+                    className="py-2 border border-[#3DDCFF]/50 text-[#3DDCFF] hover:bg-[#3DDCFF] hover:text-black font-black uppercase text-[9px] tracking-[0.1em] transition-all"
+                >
+                    REROUTE
+                </button>
+                <button 
+                    onClick={() => decompileNode(selectedNodeIndex!)}
+                    className="py-2 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase text-[9px] tracking-[0.1em] transition-all"
+                >
+                    DECOMPILE
+                </button>
+              </div>
             </div>
           )}
         </div>

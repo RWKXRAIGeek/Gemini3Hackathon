@@ -79,6 +79,10 @@ export class SecurityNode {
   fireRate: number;
   type: string;
   slowPower: number;
+  
+  // Live Metrics
+  killCount: number = 0;
+  upTime: number = 0;
 
   constructor(gx: number, gy: number, card: Card) {
     this.gridX = gx;
@@ -94,6 +98,8 @@ export class SecurityNode {
   }
 
   update(deltaTime: number, enemies: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
+    this.upTime += deltaTime;
+
     // Apply area effects like slowing
     if (this.slowPower > 0) {
       enemies.forEach(e => {
@@ -132,6 +138,13 @@ export class SecurityNode {
     return closest;
   }
 
+  setPosition(gx: number, gy: number) {
+    this.gridX = gx;
+    this.gridY = gy;
+    this.x = gx * TILE_SIZE + TILE_SIZE / 2;
+    this.y = gy * TILE_SIZE + TILE_SIZE / 2;
+  }
+
   draw(ctx: CanvasRenderingContext2D) {
     ctx.strokeStyle = '#3DDCFF';
     ctx.lineWidth = 2;
@@ -148,15 +161,17 @@ export class FirewallBuffer {
   x: number;
   y: number;
   target: MalwarePacket;
+  sourceNode?: SecurityNode;
   speed: number = 8;
   damage: number;
   isDead: boolean = false;
 
-  constructor(x: number, y: number, target: MalwarePacket, damage: number) {
+  constructor(x: number, y: number, target: MalwarePacket, damage: number, sourceNode?: SecurityNode) {
     this.x = x;
     this.y = y;
     this.target = target;
     this.damage = damage;
+    this.sourceNode = sourceNode;
   }
 
   update() {
@@ -167,6 +182,9 @@ export class FirewallBuffer {
 
     if (dist < this.speed) {
       this.target.hp -= this.damage;
+      if (this.target.hp <= 0 && this.sourceNode) {
+        this.sourceNode.killCount++;
+      }
       this.isDead = true;
     } else {
       this.x += (dx / dist) * this.speed;
