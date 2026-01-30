@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { AegisResponse, GameState, VisualDiagnosticResponse } from "../types";
+import { AegisResponse, GameState, VisualDiagnosticResponse, SessionSummary, Card, CardType } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
@@ -126,6 +126,59 @@ export const getVisualDiagnostic = async (
     return JSON.parse(response.text || '{}') as VisualDiagnosticResponse;
   } catch (error) {
     console.error("Visual Diagnostic Error:", error);
+    return null;
+  }
+};
+
+export const getRedemptionCard = async (
+  history: SessionSummary[]
+): Promise<Card | null> => {
+  try {
+    const prompt = `
+      PLAYER_PROFILE_JSON (Last Sessions):
+      ${JSON.stringify(history)}
+
+      HISTORICAL_ANALYSIS_TASK:
+      Analyze these sessions to identify a persistent failure pattern (e.g., losing repeatedly on Wave 12).
+      Synthesize a one-time "Redemption Card" (LEGENDARY rarity) specifically designed to mitigate this historical weakness.
+      The card must adhere to the Neural Shock (debuff/AoE) or Encrypted Firewall (defense/retaliation) archetypes.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "You are the Aegis OS Kernel (Strategic Layer). Use High thinking budget to perform long-context historical analysis. Synthesize a powerful Redemption Card. Output JSON ONLY.",
+        responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 16384 },
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING },
+            name: { type: Type.STRING },
+            description: { type: Type.STRING },
+            cost: { type: Type.NUMBER },
+            type: { type: Type.STRING, enum: Object.values(CardType) },
+            rarity: { type: Type.STRING, enum: ["LEGENDARY"] },
+            stats: {
+              type: Type.OBJECT,
+              properties: {
+                damage: { type: Type.NUMBER },
+                range: { type: Type.NUMBER },
+                fireRate: { type: Type.NUMBER },
+                nodeType: { type: Type.STRING },
+                slowPower: { type: Type.NUMBER }
+              }
+            }
+          },
+          required: ["id", "name", "description", "cost", "type", "rarity", "stats"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{}') as Card;
+  } catch (error) {
+    console.error("Redemption Synthesis Error:", error);
     return null;
   }
 };

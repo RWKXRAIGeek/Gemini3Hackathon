@@ -55,6 +55,12 @@ export interface AegisResponse {
   kernel_log_message: string;
 }
 
+export interface SessionSummary {
+  waveReached: number;
+  defeatedCount: number;
+  timestamp: number;
+}
+
 export interface GameState {
   kernelHP: number;
   energyPoints: number;
@@ -67,6 +73,8 @@ export interface GameState {
   statusLog: string[];
   lastGeminiResponse?: AegisResponse;
   lastDiagnostic?: VisualDiagnosticResponse;
+  history: SessionSummary[];
+  redemptionCard?: Card;
 }
 
 export interface Point {
