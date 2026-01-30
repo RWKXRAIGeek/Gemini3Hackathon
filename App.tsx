@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, GameState, Point, CardType, SessionSummary } from './types';
-import { GRID_SIZE, TILE_SIZE, INITIAL_DECK, MAX_ENERGY, MASTER_CARD_POOL } from './constants';
+import { GRID_SIZE, TILE_SIZE, INITIAL_DECK, MAX_ENERGY, MASTER_CARD_POOL, INITIAL_HP } from './constants';
 import { getAegisReasoning, getVisualDiagnostic, getRedemptionCard } from './services/gemini';
 import { SecurityNode, MalwarePacket, FirewallBuffer } from './utils/gameClasses';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
-    kernelHP: 100,
+    kernelHP: INITIAL_HP,
     energyPoints: 20,
     waveNumber: 0,
     hand: [],
@@ -40,19 +40,70 @@ const App: React.FC = () => {
     difficultyMultiplier: 1.0
   });
 
+  const drawHand = useCallback(() => {
+    setGameState(prev => {
+      const deck = [...prev.deck];
+      const discard = [...prev.discard];
+      const hand = [...prev.hand];
+      while (hand.length < 5 && (deck.length > 0 || discard.length > 0)) {
+        if (deck.length === 0) {
+          deck.push(...discard.splice(0, discard.length));
+          deck.sort(() => Math.random() - 0.5);
+        }
+        const card = deck.pop();
+        if (card) hand.push(card);
+      }
+      return { ...prev, hand, deck, discard };
+    });
+  }, []);
+
+  const resetGame = useCallback(() => {
+    // 1. Reset Game Logic Refs
+    gameRef.current.nodes = [];
+    gameRef.current.enemies = [];
+    gameRef.current.projectiles = [];
+    gameRef.current.defeatedCount = 0;
+    gameRef.current.enemiesToSpawn = 0;
+    gameRef.current.spawnTimer = 0;
+    gameRef.current.difficultyMultiplier = 1.0;
+    gameRef.current.lastFrameTime = performance.now();
+
+    // 2. Reset React State
+    setGameState(prev => ({
+      ...prev,
+      kernelHP: INITIAL_HP,
+      energyPoints: 20,
+      waveNumber: 0,
+      hand: [],
+      deck: [...INITIAL_DECK].sort(() => Math.random() - 0.5),
+      discard: [],
+      isProcessing: false,
+      isScanning: false,
+      isGameStarted: true,
+      lastGeminiResponse: undefined,
+      lastDiagnostic: undefined,
+      redemptionCard: undefined,
+      statusLog: ['[SYS_REBOOT] FLUSHING SYSTEM CACHE...', '[SYS_REBOOT] KERNEL RE-INITIALIZED.'],
+    }));
+
+    // 3. Cleanup UI state
+    setActiveWave(false);
+    setSelectedIndices([]);
+    setShowRedemption(false);
+
+    // 4. Initial Hand Draw
+    drawHand();
+  }, [drawHand]);
+
   useEffect(() => {
-    if (gameState.isGameStarted) {
+    if (gameState.isGameStarted && gameState.hand.length === 0) {
       checkForRedemption();
       drawHand();
     }
-  }, [gameState.isGameStarted]);
+  }, [gameState.isGameStarted, drawHand]);
 
   const startGame = () => {
     setGameState(prev => ({ ...prev, isGameStarted: true }));
-  };
-
-  const rebootSystem = () => {
-    window.location.reload();
   };
 
   const checkForRedemption = async () => {
@@ -92,23 +143,6 @@ const App: React.FC = () => {
       ...prev,
       statusLog: [msg, ...prev.statusLog].slice(0, 15)
     }));
-  };
-
-  const drawHand = () => {
-    setGameState(prev => {
-      const deck = [...prev.deck];
-      const discard = [...prev.discard];
-      const hand = [...prev.hand];
-      while (hand.length < 5 && (deck.length > 0 || discard.length > 0)) {
-        if (deck.length === 0) {
-          deck.push(...discard.splice(0, discard.length));
-          deck.sort(() => Math.random() - 0.5);
-        }
-        const card = deck.pop();
-        if (card) hand.push(card);
-      }
-      return { ...prev, hand, deck, discard };
-    });
   };
 
   const startWave = async () => {
@@ -165,7 +199,7 @@ const App: React.FC = () => {
     } else {
       setGameState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [gameState]);
+  }, [gameState, drawHand]);
 
   const toggleSelect = (idx: number) => {
     setSelectedIndices(prev => {
@@ -228,14 +262,19 @@ const App: React.FC = () => {
     const loop = (time: number) => {
       const dt = (time - gameRef.current.lastFrameTime) / 1000;
       gameRef.current.lastFrameTime = time;
+      
       ctx.fillStyle = '#050814';
       ctx.fillRect(0, 0, 600, 600);
+      
+      // Grid
       ctx.strokeStyle = '#101525';
       ctx.lineWidth = 1;
       for(let i=0; i<=GRID_SIZE; i++) {
         ctx.beginPath(); ctx.moveTo(i*TILE_SIZE, 0); ctx.lineTo(i*TILE_SIZE, 600); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, i*TILE_SIZE); ctx.lineTo(600, i*TILE_SIZE); ctx.stroke();
       }
+      
+      // Path
       ctx.strokeStyle = '#1A2A40';
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -244,12 +283,15 @@ const App: React.FC = () => {
         else ctx.lineTo(p.x * TILE_SIZE + TILE_SIZE/2, p.y * TILE_SIZE + TILE_SIZE/2);
       });
       ctx.stroke();
+      
+      // Kernel Core
       const core = gameRef.current.path[gameRef.current.path.length-1];
       ctx.fillStyle = '#3DDCFF';
       ctx.shadowBlur = 15;
       ctx.shadowColor = '#3DDCFF';
       ctx.fillRect(core.x * TILE_SIZE + 5, core.y * TILE_SIZE + 5, 50, 50);
       ctx.shadowBlur = 0;
+
       if (activeWave) {
         if (gameRef.current.enemiesToSpawn > 0) {
           gameRef.current.spawnTimer += dt;
@@ -260,6 +302,7 @@ const App: React.FC = () => {
             gameRef.current.spawnTimer = 0;
           }
         }
+        
         gameRef.current.enemies.forEach((e, idx) => {
           if (e.update(dt)) {
             setGameState(prev => {
@@ -276,20 +319,25 @@ const App: React.FC = () => {
             setGameState(prev => ({ ...prev, energyPoints: Math.min(MAX_ENERGY, prev.energyPoints + 2) }));
           }
         });
+        
         gameRef.current.projectiles.forEach((p, idx) => {
           p.update();
           if (p.isDead) gameRef.current.projectiles.splice(idx, 1);
         });
+        
         gameRef.current.nodes.forEach(n => {
           n.update(dt, gameRef.current.enemies, (node, target) => {
             gameRef.current.projectiles.push(new FirewallBuffer(node.x, node.y, target, node.damage));
           });
         });
+        
         if (gameRef.current.enemiesToSpawn === 0 && gameRef.current.enemies.length === 0) endWave();
       }
+      
       gameRef.current.enemies.forEach(e => e.draw(ctx));
       gameRef.current.nodes.forEach(n => n.draw(ctx));
       gameRef.current.projectiles.forEach(p => p.draw(ctx));
+      
       if (gameState.isScanning) {
         ctx.strokeStyle = '#3DDCFF';
         ctx.setLineDash([5, 15]);
@@ -444,7 +492,7 @@ const App: React.FC = () => {
               )}
 
               <button 
-                onClick={gameState.kernelHP <= 0 ? rebootSystem : startGame}
+                onClick={gameState.kernelHP <= 0 ? resetGame : startGame}
                 className={`group relative w-full py-6 font-black text-sm tracking-[0.5em] uppercase transition-all overflow-hidden border-2 ${
                   gameState.kernelHP <= 0 ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10'
                 }`}
