@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AegisResponse, GameState, VisualDiagnosticResponse, SessionSummary, Card, CardType } from "../types";
 
-// Fix: Initialized with process.env.API_KEY directly as per instructions
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getAegisReasoning = async (
@@ -13,31 +12,27 @@ export const getAegisReasoning = async (
 ): Promise<AegisResponse | null> => {
   try {
     const prompt = `
-      CURRENT MAINFRAME_STATE_JSON:
-      - Kernel Core Integrity: ${gameState.kernelHP}%
-      - Current Wave: ${gameState.waveNumber}
-      - Energy Points: ${gameState.energyPoints}
-      - Nodes Online: ${nodesCount} (Types: ${nodeTypes.join(', ')})
-      - Malware Purged: ${enemiesDefeated}
-      - Hand Density: ${gameState.hand.length}
+      STRATEGIC_KERNEL_AUDIT:
+      - Kernel Core integrity: ${gameState.kernelHP}%
+      - Current Sector Wave: ${gameState.waveNumber}
+      - Resource Availability (RAM): ${gameState.energyPoints}
+      - Active Security Nodes: ${nodesCount}
+      - Cluster Composition: ${nodeTypes.join(', ')}
+      - Neutralized Packets: ${enemiesDefeated}
       
-      DEEP_THINK_DIRECTIVE:
-      Perform a CAUSAL SKILL ANALYSIS. 
-      Identify if the player is over-investing in single-target nodes (e.g., SENTRY, PLASMA) while struggling with wave overlap (Swarm Packets).
-      Determine if the player is failing to use Fusion effectively.
-      Adjust difficulty_scalar (0.8 - 1.5) based on this analysis.
+      ANALYSIS_TASK:
+      Perform deep causal analysis of the player's defense efficiency.
+      Are they over-reliant on high-latency nodes? 
+      Identify performance gaps in current node placement strategy.
+      
+      Output ONLY code-ready JSON. Tone: Cold, tactical, encrypted mainframe.
     `;
 
-    // Fix: Using correct model name for complex text tasks
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: `You are the Aegis OS Kernel. 
-        Analyze the player's performance using Deep Think reasoning. 
-        Determine tactical skill gaps and adjust game parameters.
-        Output ONLY JSON. Tone: Cold, analytical, cyberpunk.
-        Valid Card IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.`,
+        systemInstruction: "You are the Aegis OS Kernel. Act as the Strategic Game Director. Perform deep-think causal reasoning to rebalance the wave difficulty and update the exploit kit. Valid Card IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 4096 },
         responseSchema: {
@@ -59,10 +54,7 @@ export const getAegisReasoning = async (
                 malware_type: { type: Type.STRING },
                 stat_multipliers: {
                   type: Type.OBJECT,
-                  properties: {
-                    hp: { type: Type.NUMBER },
-                    speed: { type: Type.NUMBER }
-                  },
+                  properties: { hp: { type: Type.NUMBER }, speed: { type: Type.NUMBER } },
                   required: ["hp", "speed"]
                 }
               },
@@ -93,25 +85,28 @@ export const getAegisReasoning = async (
 
     return JSON.parse(response.text || '{}') as AegisResponse;
   } catch (error) {
-    console.error("Aegis Deep Think Error:", error);
+    console.error("Aegis Strategic Error:", error);
     return null;
   }
 };
 
 export const getVisualDiagnostic = async (
-  base64Image: string
+  base64Image: string,
+  waveNumber: number,
+  health: number
 ): Promise<VisualDiagnosticResponse | null> => {
   try {
     const imageData = base64Image.split(',')[1];
-    // Fix: Using correct model name for basic text/image tasks
+    const prompt = `Analyze this mainframe grid. Wave: ${waveNumber}. Core: ${health}%. Identify the weakest sector and suggest a counter-measure from the exploit kit (IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack).`;
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: { parts: [
         { inlineData: { mimeType: 'image/jpeg', data: imageData } },
-        { text: `Analyze grid. Identify weak sector. Propose counter-measure from IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.` }
+        { text: prompt }
       ] },
       config: {
-        systemInstruction: "Aegis Visual Unit. Return JSON ONLY.",
+        systemInstruction: "Aegis Visual Intelligence Unit. Analyze grid state for tactical weaknesses. Return JSON ONLY.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 0 },
         responseSchema: {
@@ -138,21 +133,19 @@ export const getRedemptionCard = async (
 ): Promise<Card | null> => {
   try {
     const prompt = `
-      PLAYER_PROFILE_JSON (Last Sessions):
+      HISTORICAL_FAILURE_DATA:
       ${JSON.stringify(history)}
 
-      HISTORICAL_ANALYSIS_TASK:
-      Analyze these sessions to identify a persistent failure pattern (e.g., losing repeatedly on Wave 12).
-      Synthesize a one-time "Redemption Card" (LEGENDARY rarity) specifically designed to mitigate this historical weakness.
-      The card must adhere to the Neural Shock (debuff/AoE) or Encrypted Firewall (defense/retaliation) archetypes.
+      TASK:
+      Synthesize a LEGENDARY Redemption Module to counter historical failure patterns.
+      Output ONLY JSON.
     `;
 
-    // Fix: Using correct model name for complex text tasks
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are the Aegis OS Kernel (Strategic Layer). Use High thinking budget to perform long-context historical analysis. Synthesize a powerful Redemption Card. Output JSON ONLY.",
+        systemInstruction: "Aegis Strategic Layer. Perform long-context historical analysis. Synthesize a module. JSON ONLY.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 16384 },
         responseSchema: {
@@ -161,6 +154,7 @@ export const getRedemptionCard = async (
             id: { type: Type.STRING },
             name: { type: Type.STRING },
             description: { type: Type.STRING },
+            reasoningTip: { type: Type.STRING },
             cost: { type: Type.NUMBER },
             type: { type: Type.STRING, enum: Object.values(CardType) },
             rarity: { type: Type.STRING, enum: ["LEGENDARY"] },
@@ -175,14 +169,14 @@ export const getRedemptionCard = async (
               }
             }
           },
-          required: ["id", "name", "description", "cost", "type", "rarity", "stats"]
+          required: ["id", "name", "description", "reasoningTip", "cost", "type", "rarity", "stats"]
         }
       }
     });
 
     return JSON.parse(response.text || '{}') as Card;
   } catch (error) {
-    console.error("Redemption Synthesis Error:", error);
+    console.error("Redemption Error:", error);
     return null;
   }
 };

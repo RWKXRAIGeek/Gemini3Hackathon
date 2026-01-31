@@ -17,10 +17,10 @@ const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef({
     nodes: [] as SecurityNode[],
-    malwarePackets: [] as MalwarePacket[], // Renamed from enemies
+    malwarePackets: [] as MalwarePacket[],
     projectiles: [] as FirewallBuffer[],
     defeatedCount: 0,
-    malwareToSpawn: 0, // Renamed from enemiesToSpawn
+    malwareToSpawn: 0,
     spawnTimer: 0,
     difficultyMultiplier: 1.0,
     lastFrameTime: performance.now(),
@@ -35,7 +35,7 @@ const App: React.FC = () => {
     energyPoints: 20,
     waveNumber: 0,
     hand: [],
-    exploitKit_Buffer: [...INITIAL_DECK], // Renamed from deck
+    exploitKit_Buffer: [...INITIAL_DECK],
     discard: [],
     isProcessing: false,
     isScanning: false,
@@ -114,7 +114,7 @@ const App: React.FC = () => {
       lastGeminiResponse: undefined,
       lastDiagnostic: undefined,
       redemptionCard: undefined,
-      statusLog: ['[SYS_REBOOT] FLUSHING SYSTEM CACHE...', '[SYS_REBOOT] KERNEL RE-INITIALIZED.'],
+      statusLog: ['[SYS_REBOOT] FLUSHING CACHE...', '[SYS_REBOOT] KERNEL ACTIVE.'],
     }));
 
     setActiveWave(false);
@@ -137,13 +137,13 @@ const App: React.FC = () => {
 
   const toggleTacticalOverlay = () => {
     setGameState(prev => ({ ...prev, isTacticalOverlayOpen: !prev.isTacticalOverlayOpen }));
-    if (!gameState.isTacticalOverlayOpen) addLog('[SYS] INITIATING TACTICAL DIAGNOSTIC OVERLAY...');
+    if (!gameState.isTacticalOverlayOpen) addLog('[SYS] INITIATING TACTICAL OVERLAY...');
   };
 
   const checkForRedemption = async () => {
     const recentHistory = gameState.history.slice(-3);
     if (recentHistory.length >= 2 && recentHistory.every(h => h.waveReached < 10)) {
-      addLog('[AEGIS] CRITICAL FAILURE PATTERN DETECTED. INITIATING REDEMPTION...');
+      addLog('[AEGIS] PERSISTENT FAILURE DETECTED. SYNTHESIZING REDEMPTION...');
       setGameState(prev => ({ ...prev, isProcessing: true }));
       const redemption = await getRedemptionCard(gameState.history);
       if (redemption) {
@@ -190,9 +190,12 @@ const App: React.FC = () => {
     if (!canvasRef.current || gameState.isScanning) return;
     setGameState(prev => ({ ...prev, isScanning: true }));
     const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
-    const diagnostic = await getVisualDiagnostic(imageData);
+    
+    // TACTICAL CHANNEL: Gemini 3 Flash
+    const diagnostic = await getVisualDiagnostic(imageData, gameState.waveNumber, gameState.kernelHP);
     if (diagnostic) {
-      addLog(`[SCAN_RESULT] SECTOR ${diagnostic.weakest_sector} IDENTIFIED AS WEAK.`);
+      addLog(`[TACTICAL] WEAKNESS DETECTED: SECTOR ${diagnostic.weakest_sector}`);
+      addLog(`[ADVICE] ${diagnostic.analysis}`);
       setGameState(prev => ({ ...prev, isScanning: false, lastDiagnostic: diagnostic }));
     } else {
       setGameState(prev => ({ ...prev, isScanning: false }));
@@ -204,15 +207,14 @@ const App: React.FC = () => {
     setSelectedNodeIndex(null);
     setReroutingNodeIndex(null);
     setGameState(prev => ({ ...prev, isProcessing: true }));
-    addLog('[SYS] BREACH EVENT CONCLUDED. ANALYZING DATA...');
+    addLog('[SYS] BREACH CONCLUDED. ANALYZING STRATEGY...');
 
     const nodeTypes = gameRef.current.nodes.map(n => n.type);
     
-    // API Call with local fallback
+    // STRATEGIC CHANNEL: Gemini 3 Pro
     const aegisPromise = getAegisReasoning(gameState, gameRef.current.nodes.length, gameRef.current.defeatedCount, nodeTypes);
-    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 3500));
+    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 2000));
     
-    // Fix: Using Promise.race instead of Promise.any to resolve TypeScript compatibility issue in ES environments where Promise.any is not globally available.
     const aegis = await Promise.race([aegisPromise, timeoutPromise]);
 
     setGameState(prev => ({
@@ -235,7 +237,7 @@ const App: React.FC = () => {
       drawHand(newHand);
       runVisualDiagnostic();
     } else {
-      addLog('[SYS] KERNEL LATENCY EXCEEDED. LOCAL OS TAKING COMMAND.');
+      addLog('[SYS] KERNEL LATENCY EXCEEDED. FALLBACK TO LOCAL OS.');
       setGameState(prev => ({
         ...prev,
         waveNumber: prev.waveNumber + 1,
@@ -265,7 +267,7 @@ const App: React.FC = () => {
       discard: [...prev.discard, prev.hand[idx]]
     }));
     setSelectedIndices([]);
-    addLog('[SYS] MANUAL DATA PURGE EXECUTED.');
+    addLog('[SYS] DATA PURGE EXECUTED.');
   };
 
   const spawnFloatingText = useCallback((x: number, y: number, text: string) => {
@@ -300,7 +302,7 @@ const App: React.FC = () => {
   const initReroute = (idx: number) => {
     setReroutingNodeIndex(idx);
     setSelectedNodeIndex(null);
-    addLog('[SYS] SELECT DESTINATION PORT.');
+    addLog('[SYS] REROUTE: SELECT DESTINATION.');
   };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
@@ -365,19 +367,16 @@ const App: React.FC = () => {
       ctx.fillStyle = '#050814';
       ctx.fillRect(0, 0, 600, 600);
       
-      // Grid lines
       ctx.strokeStyle = '#101525'; ctx.lineWidth = 1;
       for(let i=0; i<=GRID_SIZE; i++) {
         ctx.beginPath(); ctx.moveTo(i*TILE_SIZE, 0); ctx.lineTo(i*TILE_SIZE, 600); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, i*TILE_SIZE); ctx.lineTo(600, i*TILE_SIZE); ctx.stroke();
       }
       
-      // Path
       ctx.strokeStyle = '#1A2A40'; ctx.lineWidth = 4; ctx.beginPath();
       gameRef.current.path.forEach((p, i) => i === 0 ? ctx.moveTo(p.x * TILE_SIZE + 30, p.y * TILE_SIZE + 30) : ctx.lineTo(p.x * TILE_SIZE + 30, p.y * TILE_SIZE + 30));
       ctx.stroke();
       
-      // Kernel Core
       const core = gameRef.current.path[gameRef.current.path.length-1];
       ctx.fillStyle = '#3DDCFF'; ctx.shadowBlur = 15; ctx.shadowColor = '#3DDCFF';
       ctx.fillRect(core.x * TILE_SIZE + 5, core.y * TILE_SIZE + 5, 50, 50); ctx.shadowBlur = 0;
@@ -414,7 +413,6 @@ const App: React.FC = () => {
       gameRef.current.nodes.forEach(n => n.draw(ctx));
       gameRef.current.projectiles.forEach(p => p.draw(ctx));
 
-      // Ghost Previews and Reroute highlights
       if (reroutingNodeIndex !== null || selectedIndices.length === 1) {
           if (mousePos) {
               const card = reroutingNodeIndex !== null ? gameRef.current.nodes[reroutingNodeIndex].card : gameState.hand[selectedIndices[0]];
@@ -453,7 +451,7 @@ const App: React.FC = () => {
 
   const selectedNode = selectedNodeIndex !== null ? gameRef.current.nodes[selectedNodeIndex] : null;
 
-  // New Requirement: Mastery Fade Opacity Calculation
+  // MASTERY FADE MECHANIC
   const masteryFadeOpacity = Math.max(0, 1 - (gameState.waveNumber / 10));
 
   return (
@@ -492,7 +490,7 @@ const App: React.FC = () => {
             <div className="text-gray-600 text-[9px] mb-2 uppercase font-black italic">>> KERNEL_LOG</div>
             <div className="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-[#1A2A40] px-1">
               {gameState.statusLog.map((log, i) => (
-                <div key={i} className={`text-[10px] ${log.includes('[AEGIS]') ? 'text-[#9CFF57]' : log.includes('[SCAN]') ? 'text-yellow-400' : 'text-gray-500'} flicker`}>{log}</div>
+                <div key={i} className={`text-[10px] ${log.includes('[AEGIS]') ? 'text-[#9CFF57]' : log.includes('[TACTICAL]') ? 'text-yellow-400' : 'text-gray-500'} flicker`}>{log}</div>
               ))}
             </div>
           </div>
@@ -531,16 +529,17 @@ const App: React.FC = () => {
         </div>
 
         {gameState.isTacticalOverlayOpen && (
-          <div className="absolute inset-0 z-40 bg-[#050814]/80 backdrop-blur-md flex items-center justify-center p-12" style={{ opacity: masteryFadeOpacity }}>
-            <div className="w-full h-full border-4 border-[#3DDCFF] holographic-panel p-8 flex flex-col overflow-hidden animate-slide-left flicker" onClick={e => e.stopPropagation()}>
+          <div className="absolute inset-0 z-40 bg-[#050814]/80 backdrop-blur-md flex items-center justify-center p-12 pointer-events-none" style={{ opacity: masteryFadeOpacity }}>
+            <div className="w-full h-full border-4 border-[#3DDCFF] holographic-panel p-8 flex flex-col overflow-hidden animate-slide-left flicker pointer-events-auto" onClick={e => e.stopPropagation()}>
               <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-8 border-b border-[#3DDCFF]/30 pb-4">Tactical_Diagnostic</h2>
               <div className="flex-1 grid grid-cols-2 gap-8">
                 <div className="p-4 border border-[#3DDCFF]/30 bg-[#3DDCFF]/5">
-                  <div className="text-[#3DDCFF] font-black text-[10px] mb-4 italic uppercase">>> Gemini_Visual_Unit</div>
+                  <div className="text-[#3DDCFF] font-black text-[10px] mb-4 italic uppercase">>> Aegis_Visual_Scan</div>
                   {gameState.lastDiagnostic ? (
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center bg-yellow-900/20 p-2 border border-yellow-500/30"><span className="text-yellow-500 font-black text-xs uppercase">Weakest_Sector:</span><span className="text-white font-black text-lg">{gameState.lastDiagnostic.weakest_sector}</span></div>
-                      <div className="text-gray-300 text-sm leading-relaxed italic font-mono border-l-2 border-yellow-500 pl-4">"{gameState.lastDiagnostic.analysis}"</div>
+                      <div className="flex justify-between items-center bg-yellow-900/20 p-2 border border-yellow-500/30"><span className="text-yellow-500 font-black text-xs uppercase">Target_Sector:</span><span className="text-white font-black text-lg">{gameState.lastDiagnostic.weakest_sector}</span></div>
+                      <div className="text-gray-300 text-sm leading-relaxed italic font-mono border-l-2 border-yellow-500 pl-4 uppercase">"{gameState.lastDiagnostic.analysis}"</div>
+                      <div className="p-2 border border-[#9CFF57]/30"><span className="text-[#9CFF57] font-black text-[10px] uppercase">Suggested_Patch:</span><br/><span className="text-white font-bold">{MASTER_CARD_POOL[gameState.lastDiagnostic.suggested_card_id]?.name}</span></div>
                     </div>
                   ) : <div className="text-gray-700 uppercase">NO_SCAN_DATA</div>}
                 </div>
@@ -552,21 +551,21 @@ const App: React.FC = () => {
         {(!gameState.isGameStarted || gameState.kernelHP <= 0) && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
             <div className="relative p-12 holographic-panel border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group animate-monitor-on">
-              <h2 className={`text-5xl font-black italic tracking-tighter uppercase mb-4 flicker ${gameState.kernelHP <= 0 ? 'text-red-500' : 'text-[#3DDCFF]'}`}>{gameState.kernelHP <= 0 ? 'BREACH_CRITICAL' : 'CIRCUIT_BREACH'}</h2>
-              <button onClick={gameState.kernelHP <= 0 ? resetGame : startGame} className={`w-full py-6 font-black text-sm tracking-[0.5em] uppercase border-2 ${gameState.kernelHP <= 0 ? 'border-red-500 text-red-500' : 'border-[#9CFF57] text-[#9CFF57]'}`}>{gameState.kernelHP <= 0 ? 'REBOOT_KERNEL' : 'INITIALIZE_SYSTEM'}</button>
+              <h2 className={`text-5xl font-black italic tracking-tighter uppercase mb-4 flicker ${gameState.kernelHP <= 0 ? 'text-red-500' : 'text-[#3DDCFF]'}`}>{gameState.kernelHP <= 0 ? 'CORE_BREACHED' : 'AEGIS_OS'}</h2>
+              <button onClick={gameState.kernelHP <= 0 ? resetGame : startGame} className={`w-full py-6 font-black text-sm tracking-[0.5em] uppercase border-2 ${gameState.kernelHP <= 0 ? 'border-red-500 text-red-500' : 'border-[#9CFF57] text-[#9CFF57]'}`}>{gameState.kernelHP <= 0 ? 'REBOOT_CORE' : 'INITIALIZE_KERNEL'}</button>
             </div>
           </div>
         )}
       </main>
 
       <aside className="w-1/4 border-l border-[#1A2A40] bg-[#050814]/50 backdrop-blur-sm flex flex-col z-20">
-        <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center"><span className="font-black text-[#9CFF57] italic text-xs tracking-wider uppercase">KIT_ZONE_B</span></header>
+        <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center"><span className="font-black text-[#9CFF57] italic text-xs tracking-wider uppercase">EXPLOIT_KIT</span></header>
         <section className="flex-1 overflow-hidden flex flex-col">
-          <div className="p-3 border-b border-[#1A2A40] flex justify-between items-center text-[10px]"><span className="text-gray-500 uppercase font-black tracking-widest">Active_Payloads</span></div>
+          <div className="p-3 border-b border-[#1A2A40] text-[10px]"><span className="text-gray-500 uppercase font-black tracking-widest">Active_Modules</span></div>
           <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-thin scrollbar-thumb-[#1A2A40]">
             {gameState.hand.map((card, i) => (
               <div key={card.id + i} onClick={() => toggleSelect(i)} className={`relative p-3 border cursor-pointer group overflow-hidden ${selectedIndices.includes(i) ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 border-[#9CFF57]/20"}`}>
-                <div className="flex justify-between items-start mb-2"><span className="text-[9px] font-mono text-[#3DDCFF]">PRT-0x{i}</span><span className={`text-[12px] font-black ${gameState.energyPoints >= card.cost ? 'text-[#3DDCFF]' : 'text-red-500'}`}>{card.cost}GB</span></div>
+                <div className="flex justify-between items-start mb-2"><span className="text-[9px] font-mono text-[#3DDCFF]">MOD-0x{i}</span><span className={`text-[12px] font-black ${gameState.energyPoints >= card.cost ? 'text-[#3DDCFF]' : 'text-red-500'}`}>{card.cost}GB</span></div>
                 <h3 className="font-black text-[11px] uppercase text-[#9CFF57]">{card.name}</h3>
                 <div className="grid grid-cols-2 gap-2 mt-3 border-t border-[#1A2A40] pt-2">
                   <div><span className="text-[7px] text-gray-500 uppercase font-bold">Bit_Depth</span><br/><span className="text-[10px] text-white font-black">{card.stats?.damage || 0}</span></div>

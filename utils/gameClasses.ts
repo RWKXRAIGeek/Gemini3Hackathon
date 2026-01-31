@@ -31,7 +31,6 @@ export class MalwarePacket {
     if (this.pathIndex >= this.path.length - 1) return true;
 
     const currentSpeed = this.baseSpeed * this.slowFactor;
-    // Reset slow factor for next frame
     this.slowFactor = 1;
 
     const target = this.path[this.pathIndex + 1];
@@ -80,7 +79,6 @@ export class SecurityNode {
   type: string;
   slowPower: number;
   
-  // Live Metrics
   killCount: number = 0;
   upTime: number = 0;
 
@@ -97,12 +95,11 @@ export class SecurityNode {
     this.slowPower = card.stats?.slowPower || 0;
   }
 
-  update(deltaTime: number, enemies: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
+  update(deltaTime: number, malware: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
     this.upTime += deltaTime;
 
-    // Apply area effects like slowing
     if (this.slowPower > 0) {
-      enemies.forEach(e => {
+      malware.forEach(e => {
         const dist = Math.sqrt((e.x - this.x)**2 + (e.y - this.y)**2);
         if (dist < this.range) {
           e.slowFactor = Math.min(e.slowFactor, 1 - this.slowPower);
@@ -115,7 +112,7 @@ export class SecurityNode {
     if (this.cooldown > 0) {
       this.cooldown -= deltaTime;
     } else {
-      const target = this.findTarget(enemies);
+      const target = this.findTarget(malware);
       if (target) {
         fireCallback(this, target);
         this.cooldown = 1 / this.fireRate;
@@ -123,16 +120,16 @@ export class SecurityNode {
     }
   }
 
-  findTarget(enemies: MalwarePacket[]): MalwarePacket | null {
+  findTarget(malware: MalwarePacket[]): MalwarePacket | null {
     let closest: MalwarePacket | null = null;
     let minDist = Infinity;
-    for (const enemy of enemies) {
-      const dx = enemy.x - this.x;
-      const dy = enemy.y - this.y;
+    for (const packet of malware) {
+      const dx = packet.x - this.x;
+      const dy = packet.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < this.range && dist < minDist) {
         minDist = dist;
-        closest = enemy;
+        closest = packet;
       }
     }
     return closest;
