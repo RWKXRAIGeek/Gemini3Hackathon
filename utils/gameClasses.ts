@@ -82,6 +82,11 @@ export class SecurityNode {
   killCount: number = 0;
   upTime: number = 0;
 
+  // Dissolve effect state
+  isDissolving: boolean = false;
+  dissolveTimer: number = 0;
+  readonly DISSOLVE_DURATION: number = 0.5;
+
   constructor(gx: number, gy: number, card: Card) {
     this.gridX = gx;
     this.gridY = gy;
@@ -96,6 +101,11 @@ export class SecurityNode {
   }
 
   update(deltaTime: number, malware: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
+    if (this.isDissolving) {
+      this.dissolveTimer += deltaTime;
+      return;
+    }
+
     this.upTime += deltaTime;
 
     if (this.slowPower > 0) {
@@ -143,14 +153,30 @@ export class SecurityNode {
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    ctx.strokeStyle = '#3DDCFF';
+    const alpha = this.isDissolving 
+      ? Math.max(0, 1 - (this.dissolveTimer / this.DISSOLVE_DURATION))
+      : 1.0;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    
+    // Dissolve glitch effect
+    if (this.isDissolving) {
+      ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+      ctx.strokeStyle = '#FF3B3B'; // Red highlight during dissolve
+    } else {
+      ctx.strokeStyle = '#3DDCFF';
+    }
+
     ctx.lineWidth = 2;
     ctx.strokeRect(this.x - 18, this.y - 18, 36, 36);
     
-    ctx.fillStyle = '#3DDCFF';
+    ctx.fillStyle = this.isDissolving ? '#FF3B3B' : '#3DDCFF';
     ctx.font = 'bold 12px JetBrains Mono';
     ctx.textAlign = 'center';
     ctx.fillText(this.type.substring(0, 3), this.x, this.y + 4);
+    
+    ctx.restore();
   }
 }
 

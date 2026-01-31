@@ -129,6 +129,15 @@ export const MASTER_CARD_POOL: Record<string, Card> = {
     type: CardType.SECURITY_NODE,
     rarity: 'LEGENDARY',
     stats: { damage: 15, range: 4, fireRate: 0.5, nodeType: 'JACK' }
+  },
+  'system_scan': {
+    id: 'system_scan',
+    name: 'Mainframe Scan',
+    description: 'Initiate visual vulnerability diagnostic.',
+    reasoningTip: 'TRIGGERS TACTICAL OVERLAY FOR WEAKNESS ANALYSIS.',
+    cost: 2,
+    type: CardType.TACTICAL_PATCH,
+    rarity: 'UNCOMMON',
   }
 };
 
@@ -138,6 +147,6 @@ export const INITIAL_DECK: Card[] = [
   MASTER_CARD_POOL['scout_sensor'],
   MASTER_CARD_POOL['scout_sensor'],
   MASTER_CARD_POOL['static_burst'],
-  MASTER_CARD_POOL['static_burst'],
+  MASTER_CARD_POOL['system_scan'],
   MASTER_CARD_POOL['protocol_sentry'],
 ];
