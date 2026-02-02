@@ -31,6 +31,7 @@ export class MalwarePacket {
     if (this.pathIndex >= this.path.length - 1) return true;
 
     const currentSpeed = this.baseSpeed * this.slowFactor;
+    // Reset slow factor for next frame
     this.slowFactor = 1;
 
     const target = this.path[this.pathIndex + 1];
@@ -79,13 +80,18 @@ export class SecurityNode {
   type: string;
   slowPower: number;
   
+  // Reroute Interpolation State
+  isRerouting: boolean = false;
+  rerouteTimer: number = 0;
+  startX: number = 0;
+  startY: number = 0;
+  targetX: number = 0;
+  targetY: number = 0;
+  readonly REROUTE_DURATION: number = 0.3; // 300ms as per specification
+
+  // Live Metrics
   killCount: number = 0;
   upTime: number = 0;
-
-  // Dissolve effect state
-  isDissolving: boolean = false;
-  dissolveTimer: number = 0;
-  readonly DISSOLVE_DURATION: number = 0.5;
 
   constructor(gx: number, gy: number, card: Card) {
     this.gridX = gx;
@@ -100,16 +106,30 @@ export class SecurityNode {
     this.slowPower = card.stats?.slowPower || 0;
   }
 
-  update(deltaTime: number, malware: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
-    if (this.isDissolving) {
-      this.dissolveTimer += deltaTime;
-      return;
-    }
-
+  update(deltaTime: number, enemies: MalwarePacket[], fireCallback: (node: SecurityNode, target: MalwarePacket) => void) {
     this.upTime += deltaTime;
 
+    // Handle Interpolated Rerouting
+    if (this.isRerouting) {
+      this.rerouteTimer += deltaTime;
+      const t = Math.min(1, this.rerouteTimer / this.REROUTE_DURATION);
+      // Expo Ease Out for a "snappy" high-tech feel
+      const ease = (x: number) => x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
+      const factor = ease(t);
+      
+      this.x = this.startX + (this.targetX - this.startX) * factor;
+      this.y = this.startY + (this.targetY - this.startY) * factor;
+      
+      if (t >= 1) {
+        this.isRerouting = false;
+        this.x = this.targetX;
+        this.y = this.targetY;
+      }
+    }
+
+    // Apply area effects like slowing
     if (this.slowPower > 0) {
-      malware.forEach(e => {
+      enemies.forEach(e => {
         const dist = Math.sqrt((e.x - this.x)**2 + (e.y - this.y)**2);
         if (dist < this.range) {
           e.slowFactor = Math.min(e.slowFactor, 1 - this.slowPower);
@@ -122,7 +142,7 @@ export class SecurityNode {
     if (this.cooldown > 0) {
       this.cooldown -= deltaTime;
     } else {
-      const target = this.findTarget(malware);
+      const target = this.findTarget(enemies);
       if (target) {
         fireCallback(this, target);
         this.cooldown = 1 / this.fireRate;
@@ -130,48 +150,55 @@ export class SecurityNode {
     }
   }
 
-  findTarget(malware: MalwarePacket[]): MalwarePacket | null {
+  findTarget(enemies: MalwarePacket[]): MalwarePacket | null {
     let closest: MalwarePacket | null = null;
     let minDist = Infinity;
-    for (const packet of malware) {
-      const dx = packet.x - this.x;
-      const dy = packet.y - this.y;
+    for (const enemy of enemies) {
+      const dx = enemy.x - this.x;
+      const dy = enemy.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < this.range && dist < minDist) {
         minDist = dist;
-        closest = packet;
+        closest = enemy;
       }
     }
     return closest;
   }
 
   setPosition(gx: number, gy: number) {
+    // Legacy support for instant placement
     this.gridX = gx;
     this.gridY = gy;
     this.x = gx * TILE_SIZE + TILE_SIZE / 2;
     this.y = gy * TILE_SIZE + TILE_SIZE / 2;
+    this.isRerouting = false;
+  }
+
+  startReroute(gx: number, gy: number) {
+    this.gridX = gx;
+    this.gridY = gy;
+    this.startX = this.x;
+    this.startY = this.y;
+    this.targetX = gx * TILE_SIZE + TILE_SIZE / 2;
+    this.targetY = gy * TILE_SIZE + TILE_SIZE / 2;
+    this.rerouteTimer = 0;
+    this.isRerouting = true;
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    const alpha = this.isDissolving 
-      ? Math.max(0, 1 - (this.dissolveTimer / this.DISSOLVE_DURATION))
-      : 1.0;
-
     ctx.save();
-    ctx.globalAlpha = alpha;
     
-    // Dissolve glitch effect
-    if (this.isDissolving) {
-      ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
-      ctx.strokeStyle = '#FF3B3B'; // Red highlight during dissolve
-    } else {
-      ctx.strokeStyle = '#3DDCFF';
+    // Add a slight "glitch" jitter during rerouting
+    if (this.isRerouting) {
+      ctx.translate((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
+      ctx.globalAlpha = 0.7 + Math.random() * 0.3;
     }
 
+    ctx.strokeStyle = '#3DDCFF';
     ctx.lineWidth = 2;
     ctx.strokeRect(this.x - 18, this.y - 18, 36, 36);
     
-    ctx.fillStyle = this.isDissolving ? '#FF3B3B' : '#3DDCFF';
+    ctx.fillStyle = '#3DDCFF';
     ctx.font = 'bold 12px JetBrains Mono';
     ctx.textAlign = 'center';
     ctx.fillText(this.type.substring(0, 3), this.x, this.y + 4);

@@ -1,8 +1,79 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { AegisResponse, GameState, VisualDiagnosticResponse, SessionSummary, Card, CardType } from "../types";
 
+// Initialized with process.env.API_KEY directly as per instructions
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+/**
+ * Custom base64 decoder for environments without standard atob or for raw bytes
+ */
+function decodeBase64(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Decodes raw PCM data from the Gemini TTS API into an AudioBuffer
+ */
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      // Convert 16-bit PCM to float range [-1.0, 1.0]
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
+
+/**
+ * Vocalizes text using the gemini-2.5-flash-preview-tts model
+ */
+export const speak = async (text: string): Promise<void> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `Say with a cold, tactical, military-AI tone: ${text}` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' }, // Kore has a strong, tactical profile
+          },
+        },
+      },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (base64Audio) {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const audioBytes = decodeBase64(base64Audio);
+      const audioBuffer = await decodeAudioData(audioBytes, audioContext, 24000, 1);
+      
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+      source.start();
+    }
+  } catch (error) {
+    console.error("Aegis Vocalization Error:", error);
+  }
+};
 
 export const getAegisReasoning = async (
   gameState: GameState,
@@ -12,27 +83,30 @@ export const getAegisReasoning = async (
 ): Promise<AegisResponse | null> => {
   try {
     const prompt = `
-      STRATEGIC_KERNEL_AUDIT:
-      - Kernel Core integrity: ${gameState.kernelHP}%
-      - Current Sector Wave: ${gameState.waveNumber}
-      - Resource Availability (RAM): ${gameState.energyPoints}
-      - Active Security Nodes: ${nodesCount}
-      - Cluster Composition: ${nodeTypes.join(', ')}
-      - Neutralized Packets: ${enemiesDefeated}
+      CURRENT MAINFRAME_STATE_JSON:
+      - Kernel Core Integrity: ${gameState.kernelHP}%
+      - Current Wave: ${gameState.waveNumber}
+      - Energy Points: ${gameState.energyPoints}
+      - Nodes Online: ${nodesCount} (Types: ${nodeTypes.join(', ')})
+      - Malware Purged: ${enemiesDefeated}
+      - Hand Density: ${gameState.hand.length}
       
-      ANALYSIS_TASK:
-      Perform deep causal analysis of the player's defense efficiency.
-      Are they over-reliant on high-latency nodes? 
-      Identify performance gaps in current node placement strategy.
-      
-      Output ONLY code-ready JSON. Tone: Cold, tactical, encrypted mainframe.
+      DEEP_THINK_DIRECTIVE:
+      Perform a CAUSAL SKILL ANALYSIS. 
+      Identify if the player is over-investing in single-target nodes (e.g., SENTRY, PLASMA) while struggling with wave overlap (Swarm Packets).
+      Determine if the player is failing to use Fusion effectively.
+      Adjust difficulty_scalar (0.8 - 1.5) based on this analysis.
     `;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are the Aegis OS Kernel. Act as the Strategic Game Director. Perform deep-think causal reasoning to rebalance the wave difficulty and update the exploit kit. Valid Card IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.",
+        systemInstruction: `You are the Aegis OS Kernel. 
+        Analyze the player's performance using Deep Think reasoning. 
+        Determine tactical skill gaps and adjust game parameters.
+        Output ONLY JSON. Tone: Cold, analytical, cyberpunk.
+        Valid Card IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.`,
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 4096 },
         responseSchema: {
@@ -54,7 +128,10 @@ export const getAegisReasoning = async (
                 malware_type: { type: Type.STRING },
                 stat_multipliers: {
                   type: Type.OBJECT,
-                  properties: { hp: { type: Type.NUMBER }, speed: { type: Type.NUMBER } },
+                  properties: {
+                    hp: { type: Type.NUMBER },
+                    speed: { type: Type.NUMBER }
+                  },
                   required: ["hp", "speed"]
                 }
               },
@@ -83,30 +160,63 @@ export const getAegisReasoning = async (
       },
     });
 
-    return JSON.parse(response.text || '{}') as AegisResponse;
+    const rawJson = JSON.parse(response.text || '{}');
+    
+    // Defensive Validation Layer: Merge with safe defaults
+    const validated: AegisResponse = {
+      system_status: {
+        intensity_band: rawJson.system_status?.intensity_band || 'SWEET-SPOT',
+        calculated_threat_level: rawJson.system_status?.calculated_threat_level ?? 0.5,
+        malware_encryption_strength: rawJson.system_status?.malware_encryption_strength || 'Medium'
+      },
+      wave_parameters: {
+        wave_difficulty: Math.max(0.8, Math.min(1.5, rawJson.wave_parameters?.wave_difficulty ?? 1.0)),
+        malware_type: rawJson.wave_parameters?.malware_type || 'STANDARD',
+        stat_multipliers: {
+          hp: rawJson.wave_parameters?.stat_multipliers?.hp ?? 1.0,
+          speed: rawJson.wave_parameters?.stat_multipliers?.speed ?? 1.0
+        }
+      },
+      exploit_kit_update: {
+        suggested_cards_ids: (Array.isArray(rawJson.exploit_kit_update?.suggested_cards_ids) && rawJson.exploit_kit_update.suggested_cards_ids.length > 0)
+          ? rawJson.exploit_kit_update.suggested_cards_ids 
+          : ['basic_firewall', 'protocol_sentry', 'scout_sensor'],
+        reasoning: rawJson.exploit_kit_update?.reasoning || 'Deploying standard mitigation protocols.'
+      },
+      tactical_analysis: {
+        skill_gap_identified: rawJson.tactical_analysis?.skill_gap_identified || 'Nominal performance.',
+        causal_justification: rawJson.tactical_analysis?.causal_justification || 'Parameters within expected bounds.'
+      },
+      kernel_log_message: rawJson.kernel_log_message || '[SYS] LOCAL_OS_KERNEL_ENGAGED.'
+    };
+
+    return validated;
   } catch (error) {
-    console.error("Aegis Strategic Error:", error);
-    return null;
+    console.error("Aegis Deep Think Error:", error);
+    // Return a base fallback instead of null to keep the game loop running
+    return {
+      system_status: { intensity_band: 'SWEET-SPOT', calculated_threat_level: 0.5, malware_encryption_strength: 'Low' },
+      wave_parameters: { wave_difficulty: 1.0, malware_type: 'STANDARD', stat_multipliers: { hp: 1.0, speed: 1.0 } },
+      exploit_kit_update: { suggested_cards_ids: ['basic_firewall', 'protocol_sentry'], reasoning: 'API Latency detected. Defaulting to safe kit.' },
+      tactical_analysis: { skill_gap_identified: 'N/A', causal_justification: 'Connectivity interrupted.' },
+      kernel_log_message: '[SYS] SIGNAL_LOSS: LOCAL_RECOVERY_ENGAGED.'
+    };
   }
 };
 
 export const getVisualDiagnostic = async (
-  base64Image: string,
-  waveNumber: number,
-  health: number
+  base64Image: string
 ): Promise<VisualDiagnosticResponse | null> => {
   try {
     const imageData = base64Image.split(',')[1];
-    const prompt = `Analyze this mainframe grid. Wave: ${waveNumber}. Core: ${health}%. Identify the weakest sector and suggest a counter-measure from the exploit kit (IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack).`;
-    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: { parts: [
         { inlineData: { mimeType: 'image/jpeg', data: imageData } },
-        { text: prompt }
+        { text: `Analyze grid. Identify weak sector. Propose counter-measure from IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.` }
       ] },
       config: {
-        systemInstruction: "Aegis Visual Intelligence Unit. Analyze grid state for tactical weaknesses. Return JSON ONLY.",
+        systemInstruction: "Aegis Visual Unit. Return JSON ONLY.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 0 },
         responseSchema: {
@@ -121,10 +231,24 @@ export const getVisualDiagnostic = async (
         }
       },
     });
-    return JSON.parse(response.text || '{}') as VisualDiagnosticResponse;
+    
+    const rawJson = JSON.parse(response.text || '{}');
+    
+    // Defensive Validation for Visual Diagnostic
+    return {
+      weakest_sector: rawJson.weakest_sector || 'Sector Alpha-0',
+      analysis: rawJson.analysis || 'Standard scanning failed to identify specific anomalies. General reinforcement advised.',
+      suggested_card_id: rawJson.suggested_card_id || 'protocol_sentry',
+      severity_level: rawJson.severity_level || 'Low'
+    };
   } catch (error) {
     console.error("Visual Diagnostic Error:", error);
-    return null;
+    return {
+      weakest_sector: 'Scan Failed',
+      analysis: 'Visual processor offline. Manual audit recommended.',
+      suggested_card_id: 'protocol_sentry',
+      severity_level: 'Low'
+    };
   }
 };
 
@@ -133,19 +257,20 @@ export const getRedemptionCard = async (
 ): Promise<Card | null> => {
   try {
     const prompt = `
-      HISTORICAL_FAILURE_DATA:
+      PLAYER_PROFILE_JSON (Last Sessions):
       ${JSON.stringify(history)}
 
-      TASK:
-      Synthesize a LEGENDARY Redemption Module to counter historical failure patterns.
-      Output ONLY JSON.
+      HISTORICAL_ANALYSIS_TASK:
+      Analyze these sessions to identify a persistent failure pattern (e.g., losing repeatedly on Wave 12).
+      Synthesize a one-time "Redemption Card" (LEGENDARY rarity) specifically designed to mitigate this historical weakness.
+      The card must adhere to the Neural Shock (debuff/AoE) or Encrypted Firewall (defense/retaliation) archetypes.
     `;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Aegis Strategic Layer. Perform long-context historical analysis. Synthesize a module. JSON ONLY.",
+        systemInstruction: "You are the Aegis OS Kernel (Strategic Layer). Use High thinking budget to perform long-context historical analysis. Synthesize a powerful Redemption Card. Output JSON ONLY.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 16384 },
         responseSchema: {
@@ -154,7 +279,6 @@ export const getRedemptionCard = async (
             id: { type: Type.STRING },
             name: { type: Type.STRING },
             description: { type: Type.STRING },
-            reasoningTip: { type: Type.STRING },
             cost: { type: Type.NUMBER },
             type: { type: Type.STRING, enum: Object.values(CardType) },
             rarity: { type: Type.STRING, enum: ["LEGENDARY"] },
@@ -169,14 +293,19 @@ export const getRedemptionCard = async (
               }
             }
           },
-          required: ["id", "name", "description", "reasoningTip", "cost", "type", "rarity", "stats"]
+          required: ["id", "name", "description", "cost", "type", "rarity", "stats"]
         }
       }
     });
 
-    return JSON.parse(response.text || '{}') as Card;
+    const rawJson = JSON.parse(response.text || '{}');
+    
+    // Basic structural validation for the redemption card
+    if (!rawJson.name || !rawJson.id) return null;
+    
+    return rawJson as Card;
   } catch (error) {
-    console.error("Redemption Error:", error);
+    console.error("Redemption Synthesis Error:", error);
     return null;
   }
 };

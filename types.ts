@@ -10,7 +10,7 @@ export interface Card {
   id: string;
   name: string;
   description: string;
-  reasoningTip: string;
+  reasoningTip: string; // Tactical advice snippet
   cost: number;
   type: CardType;
   rarity: 'COMMON' | 'UNCOMMON' | 'RARE' | 'LEGENDARY';
@@ -67,7 +67,7 @@ export interface GameState {
   energyPoints: number;
   waveNumber: number;
   hand: Card[];
-  exploitKit_Buffer: Card[]; // Renamed from deck
+  deck: Card[];
   discard: Card[];
   isProcessing: boolean;
   isScanning: boolean;
