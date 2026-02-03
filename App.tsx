@@ -74,6 +74,7 @@ const App: React.FC = () => {
   const [ramFlash, setRamFlash] = useState(false);
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [rerouteBeam, setRerouteBeam] = useState<{from: Point, to: Point, opacity: number} | null>(null);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   
   const [breachImpact, setBreachImpact] = useState(false);
 
@@ -124,11 +125,12 @@ const App: React.FC = () => {
         }
         if (selectedNodeIndex !== null) setSelectedNodeIndex(null);
         if (selectedIndices.length > 0) setSelectedIndices([]);
+        if (isAboutOpen) setIsAboutOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [reroutingNodeIndex, selectedNodeIndex, selectedIndices]);
+  }, [reroutingNodeIndex, selectedNodeIndex, selectedIndices, isAboutOpen]);
 
   const drawHand = useCallback((overridingHand?: Card[]) => {
     setGameState(prev => {
@@ -950,6 +952,12 @@ const App: React.FC = () => {
               <div className="mb-8"><h2 role={gameState.kernelHP <= 0 ? "alert" : undefined} className={`text-5xl font-black italic tracking-tighter uppercase mb-2 flicker ${gameState.kernelHP <= 0 ? 'text-red-500 shadow-red-500' : 'text-[#3DDCFF]'}`}>{gameState.kernelHP <= 0 ? 'BREACH_CRITICAL' : 'CIRCUIT_BREACH'}</h2><div className="text-[10px] text-gray-500 tracking-[0.8em] font-black uppercase border-y border-[#1A2A40] py-2">Aegis_OS // Strategic_Defense_Kernel</div></div>
               {gameState.kernelHP <= 0 && <div className="mb-8 p-4 bg-red-900/10 border border-red-500/20 text-red-400 text-[10px] font-mono italic">KERNEL_PANIC: The mainframe core was overwhelmed by a recursive infection loop. System integrity zeroed.</div>}
               <button onClick={gameState.kernelHP <= 0 ? resetGame : startGame} className={`group relative w-full py-6 font-black text-sm tracking-[0.5em] uppercase transition-all overflow-hidden border-2 ${gameState.kernelHP <= 0 ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10'}`}><span className="relative z-10">{gameState.kernelHP <= 0 ? 'REBOOT_KERNEL' : 'INITIALIZE_SYSTEM'}</span><div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:left-full transition-all duration-700"></div></button>
+              <button 
+                onClick={() => setIsAboutOpen(true)} 
+                className="w-full py-4 mt-4 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black text-[10px] tracking-[0.4em] uppercase hover:bg-[#3DDCFF]/10 transition-all rounded"
+              >
+                About Circuit_Breach
+              </button>
             </div>
           </div>
         )}
@@ -1019,6 +1027,28 @@ const App: React.FC = () => {
       {showRedemption && gameState.redemptionCard && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-50 flex items-center justify-center p-12">
           <div className="max-w-md w-full p-8 border-4 border-yellow-500 bg-[#050814] shadow-[0_0_100px_rgba(234,179,8,0.5)] relative overflow-hidden group animate-monitor-on"><div className="absolute top-0 left-0 w-full h-1 bg-yellow-500 animate-ping opacity-20"></div><div className="text-yellow-500 font-black tracking-[0.4em] uppercase text-[10px] mb-6 flex items-center"><span className="flex-1 h-px bg-yellow-500/30"></span><span className="mx-4">Redemption_Module_Detected</span><span className="flex-1 h-px bg-yellow-500/30"></span></div><h2 className="text-4xl font-black text-white italic mb-2 tracking-tighter uppercase">{gameState.redemptionCard.name}</h2><p className="text-gray-400 text-sm mb-8 leading-relaxed italic border-l-2 border-yellow-500/50 pl-4 font-mono">"{gameState.redemptionCard.description}"</p><button onClick={() => { setShowRedemption(false); drawHand(); }} className="w-full py-5 bg-yellow-500 text-black font-black uppercase tracking-[0.5em] hover:bg-yellow-400 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] glitch-hover">INTEGRATE_MODULE</button></div>
+        </div>
+      )}
+
+      {isAboutOpen && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-[60] flex items-center justify-center p-12">
+          <div className="max-w-md w-full p-8 border-2 border-[#9CFF57] holographic-panel shadow-[0_0_100px_rgba(156,255,87,0.2)] relative overflow-hidden animate-monitor-on">
+            <div className="absolute top-0 left-0 w-full h-1 bg-[#9CFF57] animate-pulse"></div>
+            <div className="text-[#9CFF57] font-black tracking-[0.4em] uppercase text-[10px] mb-6 flex items-center">
+              <span className="flex-1 h-px bg-[#9CFF57]/30"></span>
+              <span className="mx-4">SYSTEM_MANIFESTO</span>
+              <span className="flex-1 h-px bg-[#9CFF57]/30"></span>
+            </div>
+            <p className="text-gray-300 text-sm mb-8 leading-relaxed italic border-l-2 border-[#9CFF57]/50 pl-4 font-mono uppercase">
+              A terminal-based roguelike tower defense where Gemini 3 acts as the Aegis OS Kernel, dynamically rebalancing the game difficulty and selecting your exploit kit based on real-time performance telemetry.
+            </p>
+            <button 
+              onClick={() => setIsAboutOpen(false)} 
+              className="w-full py-5 border-2 border-[#9CFF57] text-[#9CFF57] font-black uppercase tracking-[0.5em] hover:bg-[#9CFF57]/10 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(156,255,87,0.1)]"
+            >
+              RETURN_TO_TERMINAL
+            </button>
+          </div>
         </div>
       )}
     </div>
