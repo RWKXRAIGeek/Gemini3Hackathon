@@ -15,16 +15,40 @@ export class MalwarePacket {
   radius: number = 10;
   type: string;
   slowFactor: number = 1;
+  angle: number = 0;
 
   constructor(path: Point[], stats: { hp: number, speed: number }, type: string = 'STANDARD') {
     this.path = path;
     this.x = path[0].x * TILE_SIZE + TILE_SIZE / 2;
     this.y = path[0].y * TILE_SIZE + TILE_SIZE / 2;
-    this.maxHp = stats.hp;
-    this.hp = stats.hp;
-    this.baseSpeed = stats.speed;
-    this.speed = stats.speed;
     this.type = type;
+
+    // Tactical Profile Scaling
+    switch (this.type) {
+      case 'SWARM_PACKET':
+        this.radius = 8;
+        this.maxHp = stats.hp * 0.6;
+        this.baseSpeed = stats.speed * 1.4;
+        break;
+      case 'ARMORED_ELITE':
+        this.radius = 15;
+        this.maxHp = stats.hp * 2.5;
+        this.baseSpeed = stats.speed * 0.7;
+        break;
+      case 'STEALTH_WORM':
+        this.radius = 12;
+        this.maxHp = stats.hp * 1.2;
+        this.baseSpeed = stats.speed * 1.1;
+        break;
+      default:
+        this.radius = 10;
+        this.maxHp = stats.hp;
+        this.baseSpeed = stats.speed;
+        break;
+    }
+    
+    this.hp = this.maxHp;
+    this.speed = this.baseSpeed;
   }
 
   update(deltaTime: number) {
@@ -41,6 +65,11 @@ export class MalwarePacket {
     const dx = tx - this.x;
     const dy = ty - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    // Track movement direction for visual rotation
+    if (dist > 0.1) {
+      this.angle = Math.atan2(dy, dx);
+    }
 
     if (dist < currentSpeed) {
       this.x = tx;
@@ -54,16 +83,69 @@ export class MalwarePacket {
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = this.slowFactor < 1 ? '#3DDCFF' : '#FF3B3B';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.save();
+    
+    const isSlowed = this.slowFactor < 1;
+    const primaryColor = isSlowed ? '#3DDCFF' : '#FF3B3B';
+    ctx.fillStyle = primaryColor;
+    ctx.strokeStyle = primaryColor;
+    ctx.lineWidth = 2;
 
-    const barWidth = 24;
+    switch (this.type) {
+      case 'SWARM_PACKET':
+        // Equilateral triangle rotating with movement direction
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.beginPath();
+        ctx.moveTo(this.radius, 0);
+        ctx.lineTo(-this.radius * 0.5, -this.radius * 0.866);
+        ctx.lineTo(-this.radius * 0.5, this.radius * 0.866);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'ARMORED_ELITE':
+        // Larger square with double-stroke border
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle); // Optional rotation for box
+        ctx.fillRect(-this.radius, -this.radius, this.radius * 2, this.radius * 2);
+        ctx.strokeRect(-this.radius - 3, -this.radius - 3, this.radius * 2 + 6, this.radius * 2 + 6);
+        ctx.strokeRect(-this.radius - 6, -this.radius - 6, this.radius * 2 + 12, this.radius * 2 + 12);
+        break;
+
+      case 'STEALTH_WORM':
+        // Semi-transparent hexagon with fluctuating alpha
+        const alpha = 0.1 + (Math.sin(Date.now() / 200) + 1) * 0.25; // 0.1 to 0.6
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const px = this.x + this.radius * Math.cos(i * Math.PI / 3);
+          const py = this.y + this.radius * Math.sin(i * Math.PI / 3);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = alpha + 0.2;
+        ctx.stroke();
+        break;
+
+      default:
+        // STANDARD: Circle
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+    }
+
+    ctx.restore();
+
+    // HP Bar
+    const barWidth = this.radius * 2.4;
     ctx.fillStyle = '#1A0000';
-    ctx.fillRect(this.x - 12, this.y - 18, barWidth, 4);
-    ctx.fillStyle = '#FF3B3B';
-    ctx.fillRect(this.x - 12, this.y - 18, (this.hp / this.maxHp) * barWidth, 4);
+    ctx.fillRect(this.x - barWidth/2, this.y - this.radius - 8, barWidth, 4);
+    ctx.fillStyle = primaryColor;
+    ctx.fillRect(this.x - barWidth/2, this.y - this.radius - 8, (Math.max(0, this.hp) / this.maxHp) * barWidth, 4);
   }
 }
 

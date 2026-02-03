@@ -12,6 +12,7 @@
             --neon-green: #9CFF57;
             --neon-cyan: #3DDCFF;
             --terminal-bg: #050814;
+            --flicker-speed: 0.05s;
         }
 
         body {
@@ -36,6 +37,55 @@
             z-index: 100;
             background-size: 100% 3px, 3px 100%;
             pointer-events: none;
+        }
+
+        /* Recommendation 2: Chromatic Aberration */
+        .chromatic-aberration {
+            text-shadow: 2px 0px 1px rgba(255,0,0,0.5), -2px 0px 1px rgba(0,0,255,0.5);
+            filter: contrast(1.2) brightness(1.1);
+        }
+
+        /* Recommendation 5: High Tier Effects */
+        @keyframes legendary-bg-move {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes gold-pulse {
+            0% { box-shadow: 0 0 5px rgba(234, 179, 8, 0.4), inset 0 0 5px rgba(234, 179, 8, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(234, 179, 8, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.4); }
+            100% { box-shadow: 0 0 5px rgba(234, 179, 8, 0.4), inset 0 0 5px rgba(234, 179, 8, 0.2); }
+        }
+
+        @keyframes rare-pulse {
+            0% { box-shadow: 0 0 5px rgba(61, 220, 255, 0.4); }
+            50% { box-shadow: 0 0 15px rgba(61, 220, 255, 0.7); }
+            100% { box-shadow: 0 0 5px rgba(61, 220, 255, 0.4); }
+        }
+
+        @keyframes glitch-jitter {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-1px, 1px); }
+            50% { transform: translate(1px, -1px); }
+            75% { transform: translate(-1px, -1px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        .legendary-glow {
+            background: linear-gradient(270deg, rgba(234, 179, 8, 0.15), rgba(255, 255, 255, 0.05), rgba(234, 179, 8, 0.15)) !important;
+            background-size: 400% 400% !important;
+            animation: legendary-bg-move 4s ease infinite, gold-pulse 2.5s infinite ease-in-out !important;
+            border-color: #EAB308 !important;
+        }
+
+        .rare-glow {
+            animation: rare-pulse 2.5s infinite ease-in-out !important;
+            border-color: #3DDCFF !important;
+        }
+
+        .glitch-border:hover {
+            animation: glitch-jitter 0.1s infinite !important;
         }
 
         /* Animations */
@@ -121,7 +171,7 @@
         }
 
         .flicker {
-            animation: textFlicker 0.05s infinite alternate;
+            animation: textFlicker var(--flicker-speed) infinite alternate;
         }
 
         .pulse-breach {
@@ -129,8 +179,8 @@
         }
 
         @keyframes textFlicker {
-            0% { opacity: 0.95; filter: contrast(1.1); }
-            100% { opacity: 1; filter: contrast(1); }
+            0% { opacity: 0.9; filter: contrast(1.2) brightness(1.2); }
+            100% { opacity: 1; filter: contrast(1) brightness(1); }
         }
 
         @keyframes scanline {

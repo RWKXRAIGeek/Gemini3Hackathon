@@ -13,14 +13,24 @@ const mockSystemVulnerabilities = [
   { addr: "0x1A22", status: "UNAUTHORIZED_SESS", risk: "HIGH" },
 ];
 
+interface DeployParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+}
+
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null); // Recommendation 1: Background Baking
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const gameRef = useRef({
     nodes: [] as SecurityNode[],
     enemies: [] as MalwarePacket[],
     projectiles: [] as FirewallBuffer[],
+    deployParticles: [] as DeployParticle[], // Recommendation 6
     defeatedCount: 0,
     enemiesToSpawn: 0,
     spawnTimer: 0,
@@ -37,6 +47,8 @@ const App: React.FC = () => {
       { x: 9, y: 5 }
     ] as Point[]
   });
+
+  const prevHpRef = useRef(INITIAL_HP);
 
   const [gameState, setGameState] = useState<GameState>({
     kernelHP: INITIAL_HP,
@@ -62,8 +74,18 @@ const App: React.FC = () => {
   const [ramFlash, setRamFlash] = useState(false);
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [rerouteBeam, setRerouteBeam] = useState<{from: Point, to: Point, opacity: number} | null>(null);
+  
+  const [breachImpact, setBreachImpact] = useState(false);
 
-  // Recommendation 1: Bake background static assets to off-screen canvas
+  useEffect(() => {
+    if (gameState.kernelHP < prevHpRef.current) {
+      setBreachImpact(true);
+      const timer = setTimeout(() => setBreachImpact(false), 200);
+      return () => clearTimeout(timer);
+    }
+    prevHpRef.current = gameState.kernelHP;
+  }, [gameState.kernelHP]);
+
   const bakeBackground = useCallback(() => {
     const bgCanvas = document.createElement('canvas');
     bgCanvas.width = 600;
@@ -71,19 +93,16 @@ const App: React.FC = () => {
     const bgCtx = bgCanvas.getContext('2d');
     if (!bgCtx) return;
 
-    // Background Fill
     bgCtx.fillStyle = '#050814';
     bgCtx.fillRect(0, 0, 600, 600);
 
-    // Grid Drawing
     bgCtx.strokeStyle = '#101525';
     bgCtx.lineWidth = 1;
     for (let i = 0; i <= GRID_SIZE; i++) {
       bgCtx.beginPath(); bgCtx.moveTo(i * TILE_SIZE, 0); bgCtx.lineTo(i * TILE_SIZE, 600); bgCtx.stroke();
-      bgCtx.beginPath(); bgCtx.moveTo(0, i * TILE_SIZE); bgCtx.lineTo(600, i * TILE_SIZE); bgCtx.stroke();
+      bgCtx.beginPath(); bgCtx.moveTo(0, i * TILE_SIZE); bgCtx.lineTo(600, i * TILE_SIZE,); bgCtx.stroke();
     }
 
-    // Path Drawing
     bgCtx.strokeStyle = '#1A2A40';
     bgCtx.lineWidth = 4;
     bgCtx.beginPath();
@@ -133,13 +152,15 @@ const App: React.FC = () => {
     gameRef.current.nodes = [];
     gameRef.current.enemies = [];
     gameRef.current.projectiles = [];
+    gameRef.current.deployParticles = [];
     gameRef.current.defeatedCount = 0;
     gameRef.current.enemiesToSpawn = 0;
     gameRef.current.spawnTimer = 0;
     gameRef.current.difficultyMultiplier = 1.0;
     gameRef.current.lastFrameTime = performance.now();
+    prevHpRef.current = INITIAL_HP;
 
-    bakeBackground(); // Re-bake background
+    bakeBackground();
 
     setGameState(prev => ({
       ...prev,
@@ -176,7 +197,7 @@ const App: React.FC = () => {
   }, [gameState.isGameStarted, drawHand, gameState.isProcessing]);
 
   const startGame = () => {
-    bakeBackground(); // Bake background on initial start
+    bakeBackground();
     setGameState(prev => ({ ...prev, isGameStarted: true }));
     speak("Aegis OS Kernel initialized. Core active. Systems ready for breach audit.");
   };
@@ -224,7 +245,7 @@ const App: React.FC = () => {
   const addLog = (msg: string) => {
     setGameState(prev => ({
       ...prev,
-      statusLog: [msg, ...prev.statusLog].slice(0, 15)
+      statusLog: [msg, ...prev.statusLog].slice(0, 20)
     }));
   };
 
@@ -288,7 +309,6 @@ const App: React.FC = () => {
       drawHand(newHand);
       runVisualDiagnostic();
 
-      // Recommendation 4: Vocalize the tactical message for the next phase
       speak(aegis.kernel_log_message);
     } else {
       setGameState(prev => ({ ...prev, isProcessing: false }));
@@ -384,6 +404,23 @@ const App: React.FC = () => {
     addLog('[SYS] INITIATING DATA REROUTE... SELECT DESTINATION PORT.');
   };
 
+  const spawnDeployParticles = (tx: number, ty: number) => {
+    const startX = -100; // Estimated RAM_UNIT sidebar area relative to canvas
+    const startY = 200;
+    for (let i = 0; i < 15; i++) {
+      const angle = Math.atan2(ty - startY, tx - startX) + (Math.random() - 0.5) * 0.5;
+      const speed = 400 + Math.random() * 200;
+      gameRef.current.deployParticles.push({
+        x: startX,
+        y: startY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.5,
+        maxLife: 0.5
+      });
+    }
+  };
+
   const handleCanvasClick = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -410,10 +447,8 @@ const App: React.FC = () => {
       }
 
       const oldPos = { x: node.x, y: node.y };
-      // Recommendation 3: Use the new startReroute method for interpolated motion
       node.startReroute(x, y);
       
-      // Update reroute beam to use the final target coordinate
       const targetCoord = { 
         x: node.gridX * TILE_SIZE + TILE_SIZE / 2, 
         y: node.gridY * TILE_SIZE + TILE_SIZE / 2 
@@ -446,6 +481,10 @@ const App: React.FC = () => {
         if (occupied) return;
         const newNode = new SecurityNode(x, y, card);
         gameRef.current.nodes.push(newNode);
+
+        // Recommendation 6: Particle Flow
+        spawnDeployParticles(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2);
+
         setGameState(prev => ({
           ...prev,
           energyPoints: prev.energyPoints - card.cost,
@@ -484,13 +523,50 @@ const App: React.FC = () => {
       const dt = (time - gameRef.current.lastFrameTime) / 1000;
       gameRef.current.lastFrameTime = time;
       
-      // Recommendation 1: Draw pre-rendered background
       if (bgCanvasRef.current) {
         ctx.drawImage(bgCanvasRef.current, 0, 0);
       } else {
-        // Fallback drawing if bg not ready
         ctx.fillStyle = '#050814';
         ctx.fillRect(0, 0, 600, 600);
+      }
+
+      const path = gameRef.current.path;
+      if (path.length > 1) {
+        let totalLength = 0;
+        for (let i = 0; i < path.length - 1; i++) {
+          const dx = (path[i+1].x - path[i].x) * TILE_SIZE;
+          const dy = (path[i+1].y - path[i].y) * TILE_SIZE;
+          totalLength += Math.sqrt(dx * dx + dy * dy);
+        }
+
+        const pulseSpeed = 150;
+        const currentPulseDist = (time / 1000 * pulseSpeed) % totalLength;
+
+        let accumulated = 0;
+        let pulsePos = { x: path[0].x * TILE_SIZE + TILE_SIZE / 2, y: path[0].y * TILE_SIZE + TILE_SIZE / 2 };
+        for (let i = 0; i < path.length - 1; i++) {
+          const dx = (path[i+1].x - path[i].x) * TILE_SIZE;
+          const dy = (path[i+1].y - path[i].y) * TILE_SIZE;
+          const segLen = Math.sqrt(dx * dx + dy * dy);
+          if (currentPulseDist <= accumulated + segLen) {
+            const t = (currentPulseDist - accumulated) / segLen;
+            pulsePos = {
+              x: (path[i].x * TILE_SIZE + TILE_SIZE / 2) + dx * t,
+              y: (path[i].y * TILE_SIZE + TILE_SIZE / 2) + dy * t
+            };
+            break;
+          }
+          accumulated += segLen;
+        }
+
+        ctx.save();
+        ctx.fillStyle = '#3DDCFF';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#3DDCFF';
+        ctx.beginPath();
+        ctx.arc(pulsePos.x, pulsePos.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
       
       const core = gameRef.current.path[gameRef.current.path.length-1];
@@ -500,11 +576,35 @@ const App: React.FC = () => {
       ctx.fillRect(core.x * TILE_SIZE + 5, core.y * TILE_SIZE + 5, 50, 50);
       ctx.shadowBlur = 0;
 
+      // Recommendation 6: Update and Draw Deploy Particles
+      gameRef.current.deployParticles.forEach((p, idx) => {
+        p.life -= dt;
+        if (p.life <= 0) {
+          gameRef.current.deployParticles.splice(idx, 1);
+        } else {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          const alpha = p.life / p.maxLife;
+          ctx.save();
+          ctx.fillStyle = '#3DDCFF';
+          ctx.globalAlpha = alpha;
+          ctx.shadowBlur = 5;
+          ctx.shadowColor = '#3DDCFF';
+          ctx.fillRect(p.x, p.y, 2, 2);
+          ctx.restore();
+        }
+      });
+
       if (activeWave) {
         if (gameRef.current.enemiesToSpawn > 0) {
           gameRef.current.spawnTimer += dt;
           if (gameRef.current.spawnTimer >= 0.8) {
-            const enemy = new MalwarePacket(gameRef.current.path, { hp: 40 * gameRef.current.difficultyMultiplier, speed: 2.0 }, 'STANDARD');
+            const malwareType = gameState.lastGeminiResponse?.wave_parameters?.malware_type || 'STANDARD';
+            const enemy = new MalwarePacket(
+              gameRef.current.path, 
+              { hp: 40 * gameRef.current.difficultyMultiplier, speed: 2.0 }, 
+              malwareType
+            );
             gameRef.current.enemies.push(enemy);
             gameRef.current.enemiesToSpawn--;
             gameRef.current.spawnTimer = 0;
@@ -517,7 +617,6 @@ const App: React.FC = () => {
               const newHP = Math.max(0, prev.kernelHP - 12);
               if (newHP <= 0 && prev.kernelHP > 0) {
                 setTimeout(() => saveSession(), 100);
-                // Recommendation 4: Vocalize critical system failure
                 speak("Critical Exception. Kernel core integrity zeroed. System failure imminent.");
               }
               return { ...prev, kernelHP: newHP };
@@ -603,7 +702,7 @@ const App: React.FC = () => {
     };
     requestRef = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef);
-  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam, bakeBackground]);
+  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam, bakeBackground, gameState.lastGeminiResponse]);
 
   const canFuse = selectedIndices.length === 2 && 
                   gameState.hand[selectedIndices[0]]?.id === gameState.hand[selectedIndices[1]]?.id &&
@@ -633,8 +732,58 @@ const App: React.FC = () => {
 
   const selectedNode = selectedNodeIndex !== null ? gameRef.current.nodes[selectedNodeIndex] : null;
 
+  const flickerSpeed = useMemo(() => {
+    if (gameState.kernelHP > 60) return '0.05s';
+    if (gameState.kernelHP > 30) return '0.03s';
+    return '0.01s';
+  }, [gameState.kernelHP]);
+
+  const mainWrapperClass = useMemo(() => {
+    const classes = ["flex h-screen w-screen bg-[#050814] text-[#9CFF57] font-mono selection:bg-[#3DDCFF]/30 overflow-hidden relative"];
+    if (breachImpact || gameState.kernelHP < 40) {
+      classes.push("chromatic-aberration flicker");
+    }
+    return classes.join(" ");
+  }, [breachImpact, gameState.kernelHP]);
+
+  // Recommendation 7: Log styling helper
+  const renderStatusLog = useMemo(() => {
+    return gameState.statusLog.map((log, i) => {
+      let textColor = 'text-gray-500';
+      let borderColor = 'border-gray-500/30';
+      let fontStyle = '';
+
+      if (log.includes('[AEGIS]')) {
+        textColor = 'text-[#9CFF57]';
+        borderColor = 'border-[#9CFF57]';
+      } else if (log.includes('[SYS]')) {
+        textColor = 'text-[#3DDCFF]';
+        borderColor = 'border-[#3DDCFF]';
+      } else if (log.includes('[WARN]') || log.includes('[SCAN_RESULT]')) {
+        textColor = 'text-yellow-400';
+        borderColor = 'border-yellow-400';
+      } else if (log.includes('[ERROR]') || log.includes('[CRITICAL]')) {
+        textColor = 'text-red-500';
+        borderColor = 'border-red-500';
+        fontStyle = 'font-bold';
+      }
+
+      return (
+        <div 
+          key={i} 
+          className={`text-[10px] leading-relaxed break-all pl-2 border-l-2 mb-1.5 transition-colors ${textColor} ${borderColor} ${fontStyle} flicker`}
+        >
+          {log}
+        </div>
+      );
+    });
+  }, [gameState.statusLog]);
+
   return (
-    <div className="flex h-screen w-screen bg-[#050814] text-[#9CFF57] font-mono selection:bg-[#3DDCFF]/30 overflow-hidden relative">
+    <div 
+      className={mainWrapperClass}
+      style={{ '--flicker-speed': flickerSpeed } as React.CSSProperties}
+    >
       <aside className="w-1/4 border-r border-[#1A2A40] flex flex-col bg-[#050814]/50 backdrop-blur-sm z-20">
         <header className="p-4 border-b border-[#1A2A40] flex justify-between items-center bg-[#1A2A40]/10">
           <span className="font-black text-[#3DDCFF] italic text-xs tracking-wider uppercase">DIAG_ZONE_A</span>
@@ -673,17 +822,9 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex-1 flex flex-col min-h-0 border-t border-[#1A2A40] pt-4">
-            <div className="text-gray-600 text-[9px] mb-2 uppercase tracking-[0.3em] font-black italic">>> KERNEL_LOG_STREAM</div>
-            <div aria-live="polite" className="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-[#1A2A40] px-1">
-              {gameState.statusLog.map((log, i) => (
-                <div key={i} className={`text-[10px] leading-relaxed break-all ${
-                  log.includes('[AEGIS]') ? 'text-[#9CFF57]' : 
-                  log.includes('[SCAN_RESULT]') ? 'text-yellow-400' : 
-                  'text-gray-500'
-                } flicker`}>
-                  {log}
-                </div>
-              ))}
+            <div className="text-gray-600 text-[9px] mb-2 uppercase tracking-[0.3em] font-black italic">>> KERNEL_LOG</div>
+            <div aria-live="polite" className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#1A2A40] px-1">
+              {renderStatusLog}
             </div>
           </div>
         </section>
@@ -737,8 +878,8 @@ const App: React.FC = () => {
               </div>
               <div className="space-y-2 font-mono text-[10px]">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter">BIT-DEPTH</span><span className="text-[#9CFF57] font-black">{selectedNode.damage} BD</span></div>
-                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter">LATENCY</span><span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span></div>
+                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter text-[7px]">BIT-DEPTH</span><span className="text-[#9CFF57] font-black">{selectedNode.damage} BD</span></div>
+                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter text-[7px]">LATENCY</span><span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span></div>
                 </div>
                 <div className="flex justify-between text-gray-400 border-t border-[#1A2A40] pt-2"><span className="font-bold">PURGED:</span><span className="text-white font-black">{selectedNode.killCount} PKTS</span></div>
                 <div className="flex justify-between text-gray-400"><span className="font-bold">UP-TIME:</span><span className="text-white font-black">{Math.floor(selectedNode.upTime)}s</span></div>
@@ -836,14 +977,24 @@ const App: React.FC = () => {
               const isSelected = selectedIndices.includes(i);
               const canAfford = gameState.energyPoints >= card.cost;
               const protocolId = `PRT-${card.id.substring(0, 3).toUpperCase()}-0x${i}`;
+              
+              const isLegendary = card.rarity === 'LEGENDARY';
+              const isRare = card.rarity === 'RARE';
+              const rarityClasses = isLegendary ? 'legendary-glow glitch-border' : (isRare ? 'rare-glow' : '');
+              const scanlineOpacity = isLegendary ? 'opacity-90' : (isRare ? 'opacity-70' : 'opacity-40');
+
               return (
-                <div key={card.id + '-' + i} onClick={() => toggleSelect(i)} className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${!canAfford ? 'opacity-40 grayscale' : ''}`}>
-                  <div className="card-scanline"></div>
+                <div 
+                  key={card.id + '-' + i} 
+                  onClick={() => toggleSelect(i)} 
+                  className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${rarityClasses} ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${!canAfford ? 'opacity-40 grayscale' : ''}`}
+                >
+                  <div className={`card-scanline ${scanlineOpacity}`}></div>
                   <div className="flex justify-between items-start mb-2 relative z-10"><span className="text-[9px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId}</span><div className="flex items-center"><span className={`text-[12px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span><span className="text-[8px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span></div></div>
                   <h3 className={`font-black text-[11px] mb-1 relative z-10 tracking-tight uppercase ${card.rarity === 'LEGENDARY' ? 'text-yellow-500' : 'text-[#9CFF57]'}`}>{card.name}</h3>
                   <div className="grid grid-cols-2 gap-2 mt-3 relative z-10 border-t border-[#1A2A40] pt-2">
-                    <div className="flex flex-col"><span className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">Bit_Depth</span><span className="text-[10px] text-white font-black">{card.stats?.damage || 0} <span className="text-[7px] text-gray-500">BD</span></span></div>
-                    <div className="flex flex-col"><span className="text-[7px] text-gray-500 font-bold uppercase tracking-widest">Latency</span><span className="text-[10px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}<span className="text-[7px] text-gray-500 ml-0.5">s</span></span></div>
+                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[7px]">Bit_Depth</span><span className="text-[10px] text-white font-black">{card.stats?.damage || 0} <span className="text-[7px] text-gray-500">BD</span></span></div>
+                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[7px]">Latency</span><span className="text-[10px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}<span className="text-[7px] text-gray-500 ml-0.5">s</span></span></div>
                     <div className="col-span-2 mt-2 border-t border-[#1A2A40]/50 pt-1">
                       <div className="flex justify-between items-center"><span className="text-[7px] text-[#9CFF57]/60 font-black tracking-widest uppercase italic">>> REASONING_TIP</span><button onClick={(e) => purgeCard(i, e)} className="text-[7px] px-1.5 py-0.5 border border-red-900/40 text-red-900/60 hover:border-red-500 hover:text-red-500 transition-colors uppercase font-black tracking-tighter bg-red-900/5">[PURGE]</button></div>
                       <p className="text-[8px] text-[#9CFF57]/50 font-bold mt-1 leading-tight uppercase truncate">{card.reasoningTip}</p>
