@@ -773,7 +773,7 @@ const App: React.FC = () => {
       return (
         <div 
           key={i} 
-          className={`text-[10px] leading-relaxed break-all pl-2 border-l-2 mb-1.5 transition-colors ${textColor} ${borderColor} ${fontStyle} flicker`}
+          className={`text-[11px] leading-relaxed break-all pl-2 border-l-2 mb-1.5 transition-colors ${textColor} ${borderColor} ${fontStyle} flicker`}
         >
           {log}
         </div>
@@ -802,7 +802,7 @@ const App: React.FC = () => {
           <div className="space-y-4">
             <h1 className="text-xl font-black text-white tracking-tighter uppercase italic">Aegis_OS</h1>
             <div className="p-3 holographic-panel rounded shadow-inner">
-              <div className="flex justify-between text-[10px] mb-1 font-bold text-gray-400">
+              <div className="flex justify-between text-[11px] mb-1 font-bold text-gray-400">
                 <span>CORE_INTEGRITY</span>
                 <span 
                   role={gameState.kernelHP < 30 ? "alert" : undefined}
@@ -815,10 +815,10 @@ const App: React.FC = () => {
                 <div className="h-full bg-[#3DDCFF] transition-all duration-700 shadow-[0_0_12px_#3DDCFF]" style={{width: `${gameState.kernelHP}%`}}></div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[10px]">
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div className={`p-2 border border-[#1A2A40] bg-[#1A2A40]/10 transition-all ${ramFlash ? 'animate-ram-flash' : ''}`}>
                 <div className="text-gray-500 font-bold tracking-widest uppercase">RAM_UNIT</div>
-                <div className="text-[#3DDCFF] font-black text-lg">{gameState.energyPoints}<span className="text-[10px] ml-1 opacity-50">GB</span></div>
+                <div className="text-[#3DDCFF] font-black text-lg">{gameState.energyPoints}<span className="text-[11px] ml-1 opacity-50">GB</span></div>
               </div>
               <div className="p-2 border border-[#1A2A40] bg-[#1A2A40]/10">
                 <div className="text-gray-500 font-bold tracking-widest uppercase">THREAT_LVL</div>
@@ -827,7 +827,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex-1 flex flex-col min-h-0 border-t border-[#1A2A40] pt-4">
-            <div className="text-gray-600 text-[9px] mb-2 uppercase tracking-[0.3em] font-black italic">>> KERNEL_LOG</div>
+            <div className="text-gray-600 text-[10px] mb-2 uppercase tracking-[0.3em] font-black italic">>> KERNEL_LOG</div>
             <div aria-live="polite" className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#1A2A40] px-1">
               {renderStatusLog}
             </div>
@@ -838,7 +838,7 @@ const App: React.FC = () => {
            <button 
             onClick={toggleTacticalOverlay}
             disabled={isDiagnosticDisabled}
-            className={`w-full py-2 border font-black text-[9px] tracking-[0.2em] transition-all uppercase rounded ${
+            className={`w-full py-2 border font-black text-[10px] tracking-[0.2em] transition-all uppercase rounded ${
               isDiagnosticDisabled ? "border-[#1A2A40] text-gray-800 opacity-50 grayscale pointer-events-none" :
               gameState.isTacticalOverlayOpen ? "border-[#3DDCFF] text-[#3DDCFF] animate-pulse" : 
               "border-[#1A2A40] text-gray-500 hover:text-[#3DDCFF] hover:border-[#3DDCFF]"
@@ -859,7 +859,7 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 relative flex flex-col bg-[#02040a] items-center justify-center p-8 overflow-hidden">
-        <div className="absolute top-4 left-4 text-[10px] text-gray-800 pointer-events-none font-black uppercase tracking-widest italic">Sector_Grid_01 // 600x600_Mainframe</div>
+        <div className="absolute top-4 left-4 text-[11px] text-gray-800 pointer-events-none font-black uppercase tracking-widest italic">Sector_Grid_01 // 600x600_Mainframe</div>
         <div className="relative group">
           <div className="absolute -inset-1 bg-gradient-to-r from-[#3DDCFF]/20 to-[#9CFF57]/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
           <canvas 
@@ -880,22 +880,22 @@ const App: React.FC = () => {
           {selectedNode && (
             <div className="absolute z-40 holographic-panel p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-64" style={{ left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 256), top: Math.max(selectedNode.gridY * TILE_SIZE - 40, 0) }}>
               <div className="flex justify-between items-center mb-3 border-b border-[#9CFF57]/30 pb-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#9CFF57] italic">PROT_SPEC: {selectedNode.card.name}</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#9CFF57] italic">PROT_SPEC: {selectedNode.card.name}</span>
                 <button onClick={() => setSelectedNodeIndex(null)} className="text-red-500 hover:text-white transition-colors">[X]</button>
               </div>
-              <div className="space-y-2 font-mono text-[10px]">
+              <div className="space-y-2 font-mono text-[11px]">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter text-[7px]">BIT-DEPTH</span><span className="text-[#9CFF57] font-black">{selectedNode.damage} BD</span></div>
-                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter text-[7px]">LATENCY</span><span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span></div>
+                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter text-[8px]">BIT-DEPTH</span><span className="text-[#9CFF57] font-black">{selectedNode.damage} BD</span></div>
+                  <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-tighter text-[8px]">LATENCY</span><span className="text-[#3DDCFF] font-black">{(1/selectedNode.fireRate).toFixed(1)}s</span></div>
                 </div>
                 <div className="flex justify-between text-gray-400 border-t border-[#1A2A40] pt-2"><span className="font-bold">PURGED:</span><span className="text-white font-black">{selectedNode.killCount} PKTS</span></div>
                 <div className="flex justify-between text-gray-400"><span className="font-bold">UP-TIME:</span><span className="text-white font-black">{Math.floor(selectedNode.upTime)}s</span></div>
                 <div className="flex justify-between text-gray-400"><span className="font-bold">ORIGIN_COST:</span><span className="text-[#3DDCFF] font-black">{selectedNode.card.cost} GB</span></div>
-                <div className="mt-4 p-2 bg-[#9CFF57]/5 border-l-2 border-[#9CFF57] italic text-[9px] text-[#9CFF57]/80 leading-relaxed uppercase">{selectedNode.card.reasoningTip}</div>
+                <div className="mt-4 p-2 bg-[#9CFF57]/5 border-l-2 border-[#9CFF57] italic text-[10px] text-[#9CFF57]/80 leading-relaxed uppercase">{selectedNode.card.reasoningTip}</div>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-4">
-                <button onClick={() => initReroute(selectedNodeIndex!)} className="py-2 border border-[#3DDCFF]/50 text-[#3DDCFF] hover:bg-[#3DDCFF] hover:text-black font-black uppercase text-[9px] tracking-[0.1em] transition-all">REROUTE</button>
-                <button onClick={() => decompileNode(selectedNodeIndex!)} className="py-2 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase text-[9px] tracking-[0.1em] transition-all">DECOMPILE</button>
+                <button onClick={() => initReroute(selectedNodeIndex!)} className="py-2 border border-[#3DDCFF]/50 text-[#3DDCFF] hover:bg-[#3DDCFF] hover:text-black font-black uppercase text-[10px] tracking-[0.1em] transition-all">REROUTE</button>
+                <button onClick={() => decompileNode(selectedNodeIndex!)} className="py-2 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white font-black uppercase text-[10px] tracking-[0.1em] transition-all">DECOMPILE</button>
               </div>
             </div>
           )}
@@ -907,7 +907,7 @@ const App: React.FC = () => {
             <div className="w-full h-full border-4 border-[#3DDCFF] holographic-panel shadow-[0_0_50px_rgba(61,220,255,0.3)] relative p-8 flex flex-col overflow-hidden animate-slide-left flicker" onClick={(e) => e.stopPropagation()}>
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] animate-pulse"></div>
               <div className="flex justify-between items-start mb-8 border-b border-[#3DDCFF]/30 pb-4">
-                <div><h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Tactical_Diagnostic</h2><div className="text-[#3DDCFF] text-[10px] tracking-[0.5em] font-black mt-1 uppercase">Deep_Scan_V2 // Sector_Analysis</div></div>
+                <div><h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Tactical_Diagnostic</h2><div className="text-[#3DDCFF] text-[11px] tracking-[0.5em] font-black mt-1 uppercase">Deep_Scan_V2 // Sector_Analysis</div></div>
                 <div className="flex space-x-2">
                    <button onClick={runVisualDiagnostic} disabled={gameState.isScanning} className="px-6 py-2 border-2 border-yellow-500 text-yellow-500 font-black uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all text-xs glitch-hover">{gameState.isScanning ? "SCANNING..." : "[RUN_NEW_SCAN]"}</button>
                   <button onClick={toggleTacticalOverlay} className="px-6 py-2 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-widest hover:bg-[#3DDCFF] hover:text-black transition-all text-xs">[CLOSE_OVERLAY]</button>
@@ -916,27 +916,27 @@ const App: React.FC = () => {
               <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
                 <div className="flex flex-col space-y-6 overflow-hidden">
                   <div className="p-4 border border-[#3DDCFF]/30 bg-[#3DDCFF]/5 flex-1 flex flex-col">
-                    <div className="text-[#3DDCFF] font-black text-[10px] mb-4 tracking-[0.2em] italic uppercase">>> Gemini_Visual_Intelligence</div>
+                    <div className="text-[#3DDCFF] font-black text-[11px] mb-4 tracking-[0.2em] italic uppercase">>> Gemini_Visual_Intelligence</div>
                     {gameState.lastDiagnostic ? (
                       <div className="space-y-4 animate-in fade-in duration-700">
                         <div className="flex justify-between items-center bg-yellow-900/20 p-2 border border-yellow-500/30"><span className="text-yellow-500 font-black text-xs uppercase">Weakest_Sector:</span><span className="text-white font-black text-lg">{gameState.lastDiagnostic.weakest_sector}</span></div>
                         <div className="text-gray-300 text-sm leading-relaxed italic font-mono border-l-2 border-yellow-500 pl-4">"{gameState.lastDiagnostic.analysis}"</div>
-                        <div className="p-2 border border-[#9CFF57]/30 bg-[#9CFF57]/5"><span className="text-[#9CFF57] font-black text-[10px] uppercase block mb-1">Recommended_Patch:</span><span className="text-white font-bold">{MASTER_CARD_POOL[gameState.lastDiagnostic.suggested_card_id]?.name || 'Adaptive Protocol'}</span></div>
+                        <div className="p-2 border border-[#9CFF57]/30 bg-[#9CFF57]/5"><span className="text-[#9CFF57] font-black text-[11px] uppercase block mb-1">Recommended_Patch:</span><span className="text-white font-bold">{MASTER_CARD_POOL[gameState.lastDiagnostic.suggested_card_id]?.name || 'Adaptive Protocol'}</span></div>
                       </div>
                     ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center text-gray-700 font-black text-[10px] space-y-4"><div className="animate-spin h-8 w-8 border-2 border-gray-800 border-t-gray-500 rounded-full"></div><span className="tracking-widest">NO_DIAGNOSTIC_DATA_CAPTURED</span><button onClick={runVisualDiagnostic} className="text-[#3DDCFF] underline hover:text-white transition-colors cursor-pointer">INIT_CAPTURE_SEQUENCE</button></div>
+                      <div className="flex-1 flex flex-col items-center justify-center text-gray-700 font-black text-[11px] space-y-4"><div className="animate-spin h-8 w-8 border-2 border-gray-800 border-t-gray-500 rounded-full"></div><span className="tracking-widest">NO_DIAGNOSTIC_DATA_CAPTURED</span><button onClick={runVisualDiagnostic} className="text-[#3DDCFF] underline hover:text-white transition-colors cursor-pointer">INIT_CAPTURE_SEQUENCE</button></div>
                     )}
                   </div>
-                  <div className="h-1/3 p-4 border border-gray-800 bg-black/40 text-[9px] font-mono text-gray-500 overflow-y-auto scrollbar-thin scrollbar-thumb-[#1A2A40]">
+                  <div className="h-1/3 p-4 border border-gray-800 bg-black/40 text-[10px] font-mono text-gray-500 overflow-y-auto scrollbar-thin scrollbar-thumb-[#1A2A40]">
                     [LOG] Kernal integrity verified at {gameState.kernelHP}% <br/> [LOG] Visual feed synced with deep-think processor. <br/> [LOG] Detected anomalous packet bursts at junction 0x7. <br/> [WARN] Memory latency increasing in Sector B. <br/> [INFO] Aegis Core idling at optimal thermal range. <br/> [INFO] {gameState.hand.length} payload(s) ready for deployment.
                   </div>
                 </div>
                 <div className="space-y-4 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-[#1A2A40]">
-                  <div className="text-[10px] text-gray-600 font-black uppercase tracking-widest border-b border-[#1A2A40] mb-4 pb-1 italic">>> SYSTEM_VULNERABILITY_INDEX</div>
+                  <div className="text-[11px] text-gray-600 font-black uppercase tracking-widest border-b border-[#1A2A40] mb-4 pb-1 italic">>> SYSTEM_VULNERABILITY_INDEX</div>
                   {mockSystemVulnerabilities.map((v, i) => (
                     <div key={i} className="flex justify-between items-center p-3 border border-[#1A2A40] bg-[#1A2A40]/10 hover:bg-[#3DDCFF]/5 transition-colors group">
-                      <div className="flex flex-col"><span className="text-[9px] text-gray-500 font-mono">{v.addr}</span><span className={`text-[11px] font-black tracking-wider ${v.risk === 'CRITICAL' ? 'text-red-500' : 'text-yellow-500'} group-hover:text-white`}>{v.status}</span></div>
-                      <span className={`text-[9px] px-2 py-0.5 font-black border ${v.risk === 'CRITICAL' ? 'border-red-500 text-red-500 animate-pulse' : v.risk === 'HIGH' ? 'border-orange-500 text-orange-500' : 'border-blue-500 text-blue-500'}`}>{v.risk}</span>
+                      <div className="flex flex-col"><span className="text-[10px] text-gray-500 font-mono">{v.addr}</span><span className={`text-[12px] font-black tracking-wider ${v.risk === 'CRITICAL' ? 'text-red-500' : 'text-yellow-500'} group-hover:text-white`}>{v.status}</span></div>
+                      <span className={`text-[10px] px-2 py-0.5 font-black border ${v.risk === 'CRITICAL' ? 'border-red-500 text-red-500 animate-pulse' : v.risk === 'HIGH' ? 'border-orange-500 text-orange-500' : 'border-blue-500 text-blue-500'}`}>{v.risk}</span>
                     </div>
                   ))}
                 </div>
@@ -949,12 +949,12 @@ const App: React.FC = () => {
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
             <div className="relative p-12 holographic-panel border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all animate-monitor-on">
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] flicker"></div>
-              <div className="mb-8"><h2 role={gameState.kernelHP <= 0 ? "alert" : undefined} className={`text-5xl font-black italic tracking-tighter uppercase mb-2 flicker ${gameState.kernelHP <= 0 ? 'text-red-500 shadow-red-500' : 'text-[#3DDCFF]'}`}>{gameState.kernelHP <= 0 ? 'BREACH_CRITICAL' : 'CIRCUIT_BREACH'}</h2><div className="text-[10px] text-gray-500 tracking-[0.8em] font-black uppercase border-y border-[#1A2A40] py-2">Aegis_OS // Strategic_Defense_Kernel</div></div>
-              {gameState.kernelHP <= 0 && <div className="mb-8 p-4 bg-red-900/10 border border-red-500/20 text-red-400 text-[10px] font-mono italic">KERNEL_PANIC: The mainframe core was overwhelmed by a recursive infection loop. System integrity zeroed.</div>}
+              <div className="mb-8"><h2 role={gameState.kernelHP <= 0 ? "alert" : undefined} className={`text-5xl font-black italic tracking-tighter uppercase mb-2 flicker ${gameState.kernelHP <= 0 ? 'text-red-500 shadow-red-500' : 'text-[#3DDCFF]'}`}>{gameState.kernelHP <= 0 ? 'BREACH_CRITICAL' : 'CIRCUIT_BREACH'}</h2><div className="text-[11px] text-gray-500 tracking-[0.8em] font-black uppercase border-y border-[#1A2A40] py-2">Aegis_OS // Strategic_Defense_Kernel</div></div>
+              {gameState.kernelHP <= 0 && <div className="mb-8 p-4 bg-red-900/10 border border-red-500/20 text-red-400 text-[11px] font-mono italic">KERNEL_PANIC: The mainframe core was overwhelmed by a recursive infection loop. System integrity zeroed.</div>}
               <button onClick={gameState.kernelHP <= 0 ? resetGame : startGame} className={`group relative w-full py-6 font-black text-sm tracking-[0.5em] uppercase transition-all overflow-hidden border-2 ${gameState.kernelHP <= 0 ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10'}`}><span className="relative z-10">{gameState.kernelHP <= 0 ? 'REBOOT_KERNEL' : 'INITIALIZE_SYSTEM'}</span><div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:left-full transition-all duration-700"></div></button>
               <button 
                 onClick={() => setIsAboutOpen(true)} 
-                className="w-full py-4 mt-4 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black text-[10px] tracking-[0.4em] uppercase hover:bg-[#3DDCFF]/10 transition-all rounded"
+                className="w-full py-4 mt-4 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black text-[11px] tracking-[0.4em] uppercase hover:bg-[#3DDCFF]/10 transition-all rounded"
               >
                 About Circuit_Breach
               </button>
@@ -966,25 +966,25 @@ const App: React.FC = () => {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-30 flex items-center justify-center">
             <div className="p-8 border-y-2 border-[#3DDCFF]/30 w-full flex flex-col items-center bg-[#050814]/50 animate-monitor-on">
               <div className="text-[#3DDCFF] font-black animate-pulse text-2xl tracking-[1em] italic uppercase mb-2">Aegis_Thinking</div>
-              <div className="text-[10px] text-gray-500 font-mono tracking-widest animate-bounce">SYNCING_DEEP_THINK_CORES...</div>
+              <div className="text-[11px] text-gray-500 font-mono tracking-widest animate-bounce">SYNCING_DEEP_THINK_CORES...</div>
             </div>
           </div>
         )}
       </main>
 
       <aside className="w-1/4 border-l border-[#1A2A40] bg-[#050814]/50 backdrop-blur-sm flex flex-col z-20">
-        <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center"><span className="font-black text-[#9CFF57] italic text-xs tracking-wider uppercase">KIT_ZONE_B</span><span className="text-[10px] text-gray-600 font-mono">HAND: {gameState.hand.length}/5</span></header>
+        <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center"><span className="font-black text-[#9CFF57] italic text-xs tracking-wider uppercase">KIT_ZONE_B</span><span className="text-[11px] text-gray-600 font-mono">HAND: {gameState.hand.length}/5</span></header>
         <section className="p-4 border-b border-[#1A2A40] h-1/4 overflow-y-auto bg-[#1A2A40]/5">
-           <div className="text-[9px] text-gray-500 font-black mb-3 tracking-widest uppercase italic">>> STRATEGIC_ADVISORY</div>
+           <div className="text-[10px] text-gray-500 font-black mb-3 tracking-widest uppercase italic">>> STRATEGIC_ADVISORY</div>
            {gameState.lastGeminiResponse ? (
              <div className="space-y-4 font-mono animate-monitor-on">
-                <div className="p-3 bg-[#3DDCFF]/5 border border-[#3DDCFF]/20 rounded relative overflow-hidden"><div className="card-scanline opacity-10"></div><div className="text-[#3DDCFF] text-[10px] font-black uppercase mb-1 flex items-center"><span className="w-1.5 h-1.5 bg-[#3DDCFF] rounded-full mr-2 shadow-[0_0_5px_#3DDCFF]"></span>Performance_Gap</div><div className="text-white text-[10px] font-bold leading-tight uppercase tracking-tighter">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</div><div className="mt-2 text-gray-500 italic text-[9px] leading-relaxed">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div></div>
-                <div className="text-[9px] text-gray-700 font-black text-center tracking-widest uppercase">DIFF_SCALAR: X{gameState.lastGeminiResponse.wave_parameters.wave_difficulty}</div>
+                <div className="p-3 bg-[#3DDCFF]/5 border border-[#3DDCFF]/20 rounded relative overflow-hidden"><div className="card-scanline opacity-10"></div><div className="text-[#3DDCFF] text-[11px] font-black uppercase mb-1 flex items-center"><span className="w-1.5 h-1.5 bg-[#3DDCFF] rounded-full mr-2 shadow-[0_0_5px_#3DDCFF]"></span>Performance_Gap</div><div className="text-white text-[11px] font-bold leading-tight uppercase tracking-tighter">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</div><div className="mt-2 text-gray-500 italic text-[10px] leading-relaxed">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div></div>
+                <div className="text-[10px] text-gray-700 font-black text-center tracking-widest uppercase">DIFF_SCALAR: X{gameState.lastGeminiResponse.wave_parameters.wave_difficulty}</div>
              </div>
-           ) : (<div className="text-[10px] text-gray-700 animate-pulse italic">WAITING_FOR_WAVE_DATA...</div>)}
+           ) : (<div className="text-[11px] text-gray-700 animate-pulse italic">WAITING_FOR_WAVE_DATA...</div>)}
         </section>
         <section className={`flex-1 overflow-hidden flex flex-col transition-all duration-500 ${gameState.isProcessing ? 'pulse-breach' : ''}`}>
-          <div className="p-3 border-b border-[#1A2A40] flex justify-between items-center text-[10px]"><span className="text-gray-500 uppercase font-black tracking-widest">Active_Payloads</span>{selectedIndices.length > 0 && <span className="text-[#3DDCFF] font-black">[{selectedIndices.length}] READY</span>}</div>
+          <div className="p-3 border-b border-[#1A2A40] flex justify-between items-center text-[11px]"><span className="text-gray-500 uppercase font-black tracking-widest">Active_Payloads</span>{selectedIndices.length > 0 && <span className="text-[#3DDCFF] font-black">[{selectedIndices.length}] READY</span>}</div>
           <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-thin scrollbar-thumb-[#1A2A40]">
             {gameState.hand.map((card, i) => {
               const isSelected = selectedIndices.includes(i);
@@ -1003,14 +1003,14 @@ const App: React.FC = () => {
                   className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${rarityClasses} ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${!canAfford ? 'opacity-40 grayscale' : ''}`}
                 >
                   <div className={`card-scanline ${scanlineOpacity}`}></div>
-                  <div className="flex justify-between items-start mb-2 relative z-10"><span className="text-[9px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId}</span><div className="flex items-center"><span className={`text-[12px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span><span className="text-[8px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span></div></div>
-                  <h3 className={`font-black text-[11px] mb-1 relative z-10 tracking-tight uppercase ${card.rarity === 'LEGENDARY' ? 'text-yellow-500' : 'text-[#9CFF57]'}`}>{card.name}</h3>
+                  <div className="flex justify-between items-start mb-2 relative z-10"><span className="text-[10px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId}</span><div className="flex items-center"><span className={`text-[13px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span><span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span></div></div>
+                  <h3 className={`font-black text-[12px] mb-1 relative z-10 tracking-tight uppercase ${card.rarity === 'LEGENDARY' ? 'text-yellow-500' : 'text-[#9CFF57]'}`}>{card.name}</h3>
                   <div className="grid grid-cols-2 gap-2 mt-3 relative z-10 border-t border-[#1A2A40] pt-2">
-                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[7px]">Bit_Depth</span><span className="text-[10px] text-white font-black">{card.stats?.damage || 0} <span className="text-[7px] text-gray-500">BD</span></span></div>
-                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[7px]">Latency</span><span className="text-[10px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}<span className="text-[7px] text-gray-500 ml-0.5">s</span></span></div>
+                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[8px]">Bit_Depth</span><span className="text-[11px] text-white font-black">{card.stats?.damage || 0} <span className="text-[8px] text-gray-500">BD</span></span></div>
+                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[8px]">Latency</span><span className="text-[11px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}<span className="text-[8px] text-gray-500 ml-0.5">s</span></span></div>
                     <div className="col-span-2 mt-2 border-t border-[#1A2A40]/50 pt-1">
-                      <div className="flex justify-between items-center"><span className="text-[7px] text-[#9CFF57]/60 font-black tracking-widest uppercase italic">>> REASONING_TIP</span><button onClick={(e) => purgeCard(i, e)} className="text-[7px] px-1.5 py-0.5 border border-red-900/40 text-red-900/60 hover:border-red-500 hover:text-red-500 transition-colors uppercase font-black tracking-tighter bg-red-900/5">[PURGE]</button></div>
-                      <p className="text-[8px] text-[#9CFF57]/50 font-bold mt-1 leading-tight uppercase truncate">{card.reasoningTip}</p>
+                      <div className="flex justify-between items-center"><span className="text-[8px] text-[#9CFF57]/60 font-black tracking-widest uppercase italic">>> REASONING_TIP</span><button onClick={(e) => purgeCard(i, e)} className="text-[8px] px-1.5 py-0.5 border border-red-900/40 text-red-900/60 hover:border-red-500 hover:text-red-500 transition-colors uppercase font-black tracking-tighter bg-red-900/5">[PURGE]</button></div>
+                      <p className="text-[9px] text-[#9CFF57]/50 font-bold mt-1 leading-tight uppercase truncate">{card.reasoningTip}</p>
                     </div>
                   </div>
                   {isSelected && (<div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[#3DDCFF] rounded-full shadow-[0_0_8px_#3DDCFF] animate-ping"/>)}
@@ -1020,13 +1020,13 @@ const App: React.FC = () => {
           </div>
         </section>
         <footer className="p-4 bg-[#1A2A40]/10 border-t border-[#1A2A40] space-y-3">
-          <button disabled={!canFuse} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[10px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse shadow-[0_0_15px_rgba(156,255,87,0.2)]" : "border-gray-800 text-gray-800 opacity-50"}`}>FUSE_SIGNATURES</button>
+          <button disabled={!canFuse} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse shadow-[0_0_15px_rgba(156,255,87,0.2)]" : "border-gray-800 text-gray-800 opacity-50"}`}>FUSE_SIGNATURES</button>
         </footer>
       </aside>
 
       {showRedemption && gameState.redemptionCard && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-50 flex items-center justify-center p-12">
-          <div className="max-w-md w-full p-8 border-4 border-yellow-500 bg-[#050814] shadow-[0_0_100px_rgba(234,179,8,0.5)] relative overflow-hidden group animate-monitor-on"><div className="absolute top-0 left-0 w-full h-1 bg-yellow-500 animate-ping opacity-20"></div><div className="text-yellow-500 font-black tracking-[0.4em] uppercase text-[10px] mb-6 flex items-center"><span className="flex-1 h-px bg-yellow-500/30"></span><span className="mx-4">Redemption_Module_Detected</span><span className="flex-1 h-px bg-yellow-500/30"></span></div><h2 className="text-4xl font-black text-white italic mb-2 tracking-tighter uppercase">{gameState.redemptionCard.name}</h2><p className="text-gray-400 text-sm mb-8 leading-relaxed italic border-l-2 border-yellow-500/50 pl-4 font-mono">"{gameState.redemptionCard.description}"</p><button onClick={() => { setShowRedemption(false); drawHand(); }} className="w-full py-5 bg-yellow-500 text-black font-black uppercase tracking-[0.5em] hover:bg-yellow-400 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] glitch-hover">INTEGRATE_MODULE</button></div>
+          <div className="max-w-md w-full p-8 border-4 border-yellow-500 bg-[#050814] shadow-[0_0_100px_rgba(234,179,8,0.5)] relative overflow-hidden group animate-monitor-on"><div className="absolute top-0 left-0 w-full h-1 bg-yellow-500 animate-ping opacity-20"></div><div className="text-yellow-500 font-black tracking-[0.4em] uppercase text-[11px] mb-6 flex items-center"><span className="flex-1 h-px bg-yellow-500/30"></span><span className="mx-4">Redemption_Module_Detected</span><span className="flex-1 h-px bg-yellow-500/30"></span></div><h2 className="text-4xl font-black text-white italic mb-2 tracking-tighter uppercase">{gameState.redemptionCard.name}</h2><p className="text-gray-400 text-sm mb-8 leading-relaxed italic border-l-2 border-yellow-500/50 pl-4 font-mono">"{gameState.redemptionCard.description}"</p><button onClick={() => { setShowRedemption(false); drawHand(); }} className="w-full py-5 bg-yellow-500 text-black font-black uppercase tracking-[0.5em] hover:bg-yellow-400 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] glitch-hover">INTEGRATE_MODULE</button></div>
         </div>
       )}
 
@@ -1034,7 +1034,7 @@ const App: React.FC = () => {
         <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-[60] flex items-center justify-center p-12">
           <div className="max-w-md w-full p-8 border-2 border-[#9CFF57] holographic-panel shadow-[0_0_100px_rgba(156,255,87,0.2)] relative overflow-hidden animate-monitor-on">
             <div className="absolute top-0 left-0 w-full h-1 bg-[#9CFF57] animate-pulse"></div>
-            <div className="text-[#9CFF57] font-black tracking-[0.4em] uppercase text-[10px] mb-6 flex items-center">
+            <div className="text-[#9CFF57] font-black tracking-[0.4em] uppercase text-[11px] mb-6 flex items-center">
               <span className="flex-1 h-px bg-[#9CFF57]/30"></span>
               <span className="mx-4">SYSTEM_MANIFESTO</span>
               <span className="flex-1 h-px bg-[#9CFF57]/30"></span>
