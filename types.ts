@@ -78,6 +78,9 @@ export interface GameState {
   lastDiagnostic?: VisualDiagnosticResponse;
   history: SessionSummary[];
   redemptionCard?: Card;
+  // Audit Tracking
+  totalCardsDeployed: number;
+  advisoryCount: number;
 }
 
 export interface Point {

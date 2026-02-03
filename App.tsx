@@ -22,6 +22,21 @@ interface DeployParticle {
   maxLife: number;
 }
 
+interface AuditReport {
+  timestamp: string;
+  sectorsStabilized: number;
+  malwarePurged: number;
+  payloadsCommitted: number;
+  strategicInterventions: number;
+  nodePerformance: {
+    name: string;
+    maxKills: number;
+    totalUptime: number;
+    isMVP: boolean;
+  }[];
+  criticalIncidents: string[];
+}
+
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -30,7 +45,7 @@ const App: React.FC = () => {
     nodes: [] as SecurityNode[],
     enemies: [] as MalwarePacket[],
     projectiles: [] as FirewallBuffer[],
-    deployParticles: [] as DeployParticle[], // Recommendation 6
+    deployParticles: [] as DeployParticle[], 
     defeatedCount: 0,
     enemiesToSpawn: 0,
     spawnTimer: 0,
@@ -63,6 +78,8 @@ const App: React.FC = () => {
     isTacticalOverlayOpen: false,
     statusLog: ['[SYS_INIT] AEGIS OS BOOTING...', '[SYS_INIT] KERNEL CORE ACTIVE.'],
     history: JSON.parse(localStorage.getItem('aegis_history') || '[]'),
+    totalCardsDeployed: 0,
+    advisoryCount: 0,
   });
 
   const [activeWave, setActiveWave] = useState(false);
@@ -75,6 +92,7 @@ const App: React.FC = () => {
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [rerouteBeam, setRerouteBeam] = useState<{from: Point, to: Point, opacity: number} | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
   
   const [breachImpact, setBreachImpact] = useState(false);
 
@@ -85,7 +103,50 @@ const App: React.FC = () => {
       return () => clearTimeout(timer);
     }
     prevHpRef.current = gameState.kernelHP;
-  }, [gameState.kernelHP]);
+
+    // Trigger Audit generation when HP drops to 0
+    if (gameState.kernelHP <= 0 && gameState.isGameStarted && !auditReport) {
+      generateAuditReport();
+    }
+  }, [gameState.kernelHP, gameState.isGameStarted]);
+
+  const generateAuditReport = useCallback(() => {
+    const nodes = gameRef.current.nodes;
+    const performanceMap = new Map<string, { maxKills: number; totalUptime: number }>();
+    
+    nodes.forEach(node => {
+      const existing = performanceMap.get(node.card.name) || { maxKills: 0, totalUptime: 0 };
+      performanceMap.set(node.card.name, {
+        maxKills: Math.max(existing.maxKills, node.killCount),
+        totalUptime: existing.totalUptime + node.upTime
+      });
+    });
+
+    const performanceArray = Array.from(performanceMap.entries()).map(([name, stats]) => ({
+      name,
+      ...stats,
+      isMVP: false
+    }));
+
+    if (performanceArray.length > 0) {
+      const mvp = performanceArray.reduce((prev, current) => (prev.maxKills > current.maxKills) ? prev : current);
+      mvp.isMVP = true;
+    }
+
+    const criticalIncidents = gameState.statusLog
+      .filter(log => log.includes('[ERROR]') || log.includes('[CRITICAL]') || log.includes('[SCAN_RESULT]'))
+      .slice(0, 3);
+
+    setAuditReport({
+      timestamp: Date.now().toString(16).toUpperCase(),
+      sectorsStabilized: gameState.waveNumber,
+      malwarePurged: gameRef.current.defeatedCount,
+      payloadsCommitted: gameState.totalCardsDeployed,
+      strategicInterventions: gameState.advisoryCount,
+      nodePerformance: performanceArray,
+      criticalIncidents
+    });
+  }, [gameState]);
 
   const bakeBackground = useCallback(() => {
     const bgCanvas = document.createElement('canvas');
@@ -180,6 +241,8 @@ const App: React.FC = () => {
       lastDiagnostic: undefined,
       redemptionCard: undefined,
       statusLog: ['[SYS_REBOOT] FLUSHING SYSTEM CACHE...', '[SYS_REBOOT] KERNEL RE-INITIALIZED.'],
+      totalCardsDeployed: 0,
+      advisoryCount: 0,
     }));
 
     setActiveWave(false);
@@ -188,6 +251,7 @@ const App: React.FC = () => {
     setSelectedNodeIndex(null);
     setReroutingNodeIndex(null);
     setFloatingTexts([]);
+    setAuditReport(null);
     drawHand([]);
   }, [drawHand, bakeBackground]);
 
@@ -304,7 +368,8 @@ const App: React.FC = () => {
         waveNumber: prev.waveNumber + 1,
         energyPoints: Math.min(MAX_ENERGY, prev.energyPoints + 15),
         isProcessing: false,
-        lastGeminiResponse: aegis
+        lastGeminiResponse: aegis,
+        advisoryCount: prev.advisoryCount + 1
       }));
       
       gameRef.current.difficultyMultiplier = aegis.wave_parameters.wave_difficulty;
@@ -491,7 +556,8 @@ const App: React.FC = () => {
           ...prev,
           energyPoints: prev.energyPoints - card.cost,
           hand: prev.hand.filter((_, i) => i !== idx),
-          discard: [...prev.discard, card]
+          discard: [...prev.discard, card],
+          totalCardsDeployed: prev.totalCardsDeployed + 1
         }));
         setSelectedIndices([]);
         addLog(`[SYS] NODE ${card.name} DEPLOYED TO [${x},${y}]`);
@@ -578,7 +644,6 @@ const App: React.FC = () => {
       ctx.fillRect(core.x * TILE_SIZE + 5, core.y * TILE_SIZE + 5, 50, 50);
       ctx.shadowBlur = 0;
 
-      // Recommendation 6: Update and Draw Deploy Particles
       gameRef.current.deployParticles.forEach((p, idx) => {
         p.life -= dt;
         if (p.life <= 0) {
@@ -748,7 +813,6 @@ const App: React.FC = () => {
     return classes.join(" ");
   }, [breachImpact, gameState.kernelHP]);
 
-  // Recommendation 7: Log styling helper
   const renderStatusLog = useMemo(() => {
     return gameState.statusLog.map((log, i) => {
       let textColor = 'text-gray-500';
@@ -945,12 +1009,11 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {(!gameState.isGameStarted || gameState.kernelHP <= 0) && (
+        {(!gameState.isGameStarted || (gameState.kernelHP <= 0 && !auditReport)) && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
             <div className="relative p-12 holographic-panel border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all animate-monitor-on">
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] flicker"></div>
               <div className="mb-8"><h2 role={gameState.kernelHP <= 0 ? "alert" : undefined} className={`text-5xl font-black italic tracking-tighter uppercase mb-2 flicker ${gameState.kernelHP <= 0 ? 'text-red-500 shadow-red-500' : 'text-[#3DDCFF]'}`}>{gameState.kernelHP <= 0 ? 'BREACH_CRITICAL' : 'CIRCUIT_BREACH'}</h2><div className="text-[11px] text-gray-500 tracking-[0.8em] font-black uppercase border-y border-[#1A2A40] py-2">Aegis_OS // Strategic_Defense_Kernel</div></div>
-              {gameState.kernelHP <= 0 && <div className="mb-8 p-4 bg-red-900/10 border border-red-500/20 text-red-400 text-[11px] font-mono italic">KERNEL_PANIC: The mainframe core was overwhelmed by a recursive infection loop. System integrity zeroed.</div>}
               <button onClick={gameState.kernelHP <= 0 ? resetGame : startGame} className={`group relative w-full py-6 font-black text-sm tracking-[0.5em] uppercase transition-all overflow-hidden border-2 ${gameState.kernelHP <= 0 ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10'}`}><span className="relative z-10">{gameState.kernelHP <= 0 ? 'REBOOT_KERNEL' : 'INITIALIZE_SYSTEM'}</span><div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:left-full transition-all duration-700"></div></button>
               <button 
                 onClick={() => setIsAboutOpen(true)} 
@@ -958,6 +1021,111 @@ const App: React.FC = () => {
               >
                 About Circuit_Breach
               </button>
+            </div>
+          </div>
+        )}
+
+        {auditReport && (
+          <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-xl p-8 overflow-y-auto">
+            <div className="relative p-8 holographic-panel border-2 border-[#9CFF57] shadow-[0_0_50px_rgba(156,255,87,0.2)] max-w-4xl w-full animate-monitor-on flex flex-col max-h-full">
+              <div className="absolute top-0 left-0 w-full h-1 bg-[#9CFF57] animate-pulse"></div>
+              
+              <header className="mb-6 flex justify-between items-end border-b border-[#9CFF57]/30 pb-4">
+                <div>
+                  <h2 className="text-3xl font-black italic text-white tracking-tighter uppercase mb-1 flex items-center">
+                    [POST_MORTEM_AUDIT_REPORT_0x{auditReport.timestamp}]
+                    <span className="ml-2 w-2 h-6 bg-[#9CFF57] animate-pulse"></span>
+                  </h2>
+                  <div className="text-[#9CFF57] text-[10px] font-mono tracking-[0.3em] uppercase opacity-70 italic">CORE TERMINATION WAS INEVITABLE. ANALYZING INEFFICIENCIES...</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-red-500 font-black text-xs uppercase animate-pulse">BREACH_STATUS: CRITICAL</span>
+                </div>
+              </header>
+
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                <section>
+                  <h3 className="text-[#9CFF57] font-black text-[11px] mb-4 tracking-[0.2em] uppercase italic">>> SESSION_METRICS</h3>
+                  <div className="holographic-panel bg-[#9CFF57]/5 overflow-hidden">
+                    <table className="w-full text-left font-mono text-[11px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-[#9CFF57]/20">
+                          <th className="p-3 text-[#9CFF57] uppercase tracking-widest font-black">Metric</th>
+                          <th className="p-3 text-[#9CFF57] uppercase tracking-widest font-black">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-white uppercase">
+                        <tr className="border-b border-[#9CFF57]/10 hover:bg-[#9CFF57]/5">
+                          <td className="p-3 font-bold opacity-60">Sectors_Stabilized</td>
+                          <td className="p-3 font-black text-[#3DDCFF]">{auditReport.sectorsStabilized}</td>
+                        </tr>
+                        <tr className="border-b border-[#9CFF57]/10 hover:bg-[#9CFF57]/5">
+                          <td className="p-3 font-bold opacity-60">Malware_Purged</td>
+                          <td className="p-3 font-black text-[#3DDCFF]">{auditReport.malwarePurged}</td>
+                        </tr>
+                        <tr className="border-b border-[#9CFF57]/10 hover:bg-[#9CFF57]/5">
+                          <td className="p-3 font-bold opacity-60">Payloads_Committed</td>
+                          <td className="p-3 font-black text-[#3DDCFF]">{auditReport.payloadsCommitted}</td>
+                        </tr>
+                        <tr className="hover:bg-[#9CFF57]/5">
+                          <td className="p-3 font-bold opacity-60">Strategic_Interventions</td>
+                          <td className="p-3 font-black text-[#3DDCFF]">{auditReport.strategicInterventions}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section className="flex flex-col">
+                  <h3 className="text-[#9CFF57] font-black text-[11px] mb-4 tracking-[0.2em] uppercase italic">>> NODE_PERFORMANCE_INDEX</h3>
+                  <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-[#1A2A40] pr-2">
+                    {auditReport.nodePerformance.map((node, i) => (
+                      <div 
+                        key={i} 
+                        className={`p-3 border transition-all ${node.isMVP ? 'border-[#3DDCFF] bg-[#3DDCFF]/5 shadow-[0_0_15px_rgba(61,220,255,0.1)]' : 'border-[#1A2A40] bg-black/40'}`}
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <span className={`text-[12px] font-black uppercase ${node.isMVP ? 'text-[#3DDCFF]' : 'text-white'}`}>{node.name}</span>
+                          {node.isMVP && <span className="text-[9px] px-1.5 py-0.5 border border-[#3DDCFF] text-[#3DDCFF] font-black uppercase italic animate-pulse">MVP_NODE</span>}
+                        </div>
+                        <div className="flex gap-4 text-[10px] text-gray-500 font-mono">
+                          <span>KILLS: <span className="text-white font-black">{node.maxKills}</span></span>
+                          <span>UPTIME: <span className="text-white font-black">{Math.floor(node.totalUptime)}s</span></span>
+                        </div>
+                      </div>
+                    ))}
+                    {auditReport.nodePerformance.length === 0 && (
+                      <div className="text-[11px] text-gray-700 italic border border-dashed border-gray-800 p-8 text-center uppercase tracking-widest">No nodes deployed during session.</div>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <section className="mb-8">
+                <h3 className="text-[#9CFF57] font-black text-[11px] mb-3 tracking-[0.2em] uppercase italic">>> CRITICAL_INCIDENT_RECAP</h3>
+                <div className="p-4 bg-red-900/5 border border-red-900/20 rounded">
+                  {auditReport.criticalIncidents.length > 0 ? auditReport.criticalIncidents.map((incident, i) => (
+                    <div key={i} className="text-[10px] font-mono text-red-400 mb-1 border-l-2 border-red-500 pl-2 leading-tight uppercase">{incident}</div>
+                  )) : (
+                    <div className="text-[10px] font-mono text-gray-700 italic uppercase">No critical telemetry flags recorded.</div>
+                  )}
+                </div>
+              </section>
+
+              <footer className="mt-auto grid grid-cols-2 gap-4">
+                <button 
+                  onClick={resetGame} 
+                  className="py-5 bg-[#9CFF57] text-black font-black uppercase tracking-[0.5em] hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all text-sm"
+                >
+                  REBOOT_KERNEL
+                </button>
+                <button 
+                  onClick={() => setIsAboutOpen(true)} 
+                  className="py-5 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-[0.4em] hover:bg-[#3DDCFF]/10 transition-all text-sm"
+                >
+                  SYSTEM_MANIFESTO
+                </button>
+              </footer>
             </div>
           </div>
         )}
