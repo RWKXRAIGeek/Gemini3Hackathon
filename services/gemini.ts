@@ -6,6 +6,37 @@ import { AegisResponse, GameState, VisualDiagnosticResponse, SessionSummary, Car
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
+ * Utility to perform exponential backoff retries for API calls.
+ */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let delay = 2000;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const errorMsg = error?.message || "";
+      const isRateLimit = errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED");
+      
+      // Handle the specific error mentioned in the guidelines for model selection
+      const isNotFound = errorMsg.includes("Requested entity was not found.");
+      if (isNotFound) {
+        console.error("Critical API Error: Project/Model not found. Plan upgrade or key reset may be required.");
+        throw error;
+      }
+
+      if (isRateLimit && i < maxRetries - 1) {
+        console.warn(`[AEGIS] Rate limit reached. Executing backoff sequence: ${delay}ms... (Retry ${i + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; 
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("Max communication attempts exhausted.");
+}
+
+/**
  * Custom base64 decoder for environments without standard atob or for raw bytes
  */
 function decodeBase64(base64: string): Uint8Array {
@@ -34,7 +65,6 @@ async function decodeAudioData(
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
-      // Convert 16-bit PCM to float range [-1.0, 1.0]
       channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
     }
   }
@@ -42,22 +72,22 @@ async function decodeAudioData(
 }
 
 /**
- * Vocalizes text using the gemini-2.5-flash-preview-tts model
+ * Vocalizes text using the gemini-2.5-flash-preview-tts model with retry logic
  */
 export const speak = async (text: string): Promise<void> => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: `Say with a cold, tactical, military-AI tone: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' }, // Kore has a strong, tactical profile
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
           },
         },
       },
-    });
+    }));
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
@@ -81,6 +111,14 @@ export const getAegisReasoning = async (
   enemiesDefeated: number,
   nodeTypes: string[]
 ): Promise<AegisResponse | null> => {
+  const fallback: AegisResponse = {
+    system_status: { intensity_band: 'SWEET-SPOT', calculated_threat_level: 0.5, malware_encryption_strength: 'Low' },
+    wave_parameters: { wave_difficulty: 1.0, malware_type: 'STANDARD', stat_multipliers: { hp: 1.0, speed: 1.0 } },
+    exploit_kit_update: { suggested_cards_ids: ['basic_firewall', 'protocol_sentry'], reasoning: 'Communication bottleneck. Deploying default mitigation kit.' },
+    tactical_analysis: { skill_gap_identified: 'N/A', causal_justification: 'Connectivity interrupted.' },
+    kernel_log_message: '[SYS] SIGNAL_LOSS: LOCAL_RECOVERY_ENGAGED.'
+  };
+
   try {
     const prompt = `
       CURRENT MAINFRAME_STATE_JSON:
@@ -93,20 +131,17 @@ export const getAegisReasoning = async (
       
       DEEP_THINK_DIRECTIVE:
       Perform a CAUSAL SKILL ANALYSIS. 
-      Identify if the player is over-investing in single-target nodes (e.g., SENTRY, PLASMA) while struggling with wave overlap (Swarm Packets).
-      Determine if the player is failing to use Fusion effectively.
+      Identify if the player is over-investing in single-target nodes while struggling with wave overlap.
       Adjust difficulty_scalar (0.8 - 1.5) based on this analysis.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction: `You are the Aegis OS Kernel. 
         Analyze the player's performance using Deep Think reasoning. 
-        Determine tactical skill gaps and adjust game parameters.
-        Output ONLY JSON. Tone: Cold, analytical, cyberpunk.
-        Valid Card IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.`,
+        Output ONLY JSON. Tone: Cold, analytical, cyberpunk.`,
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 4096 },
         responseSchema: {
@@ -158,12 +193,11 @@ export const getAegisReasoning = async (
           required: ["system_status", "wave_parameters", "exploit_kit_update", "tactical_analysis", "kernel_log_message"]
         }
       },
-    });
+    }));
 
     const rawJson = JSON.parse(response.text || '{}');
     
-    // Defensive Validation Layer: Merge with safe defaults
-    const validated: AegisResponse = {
+    return {
       system_status: {
         intensity_band: rawJson.system_status?.intensity_band || 'SWEET-SPOT',
         calculated_threat_level: rawJson.system_status?.calculated_threat_level ?? 0.5,
@@ -189,18 +223,9 @@ export const getAegisReasoning = async (
       },
       kernel_log_message: rawJson.kernel_log_message || '[SYS] LOCAL_OS_KERNEL_ENGAGED.'
     };
-
-    return validated;
   } catch (error) {
     console.error("Aegis Deep Think Error:", error);
-    // Return a base fallback instead of null to keep the game loop running
-    return {
-      system_status: { intensity_band: 'SWEET-SPOT', calculated_threat_level: 0.5, malware_encryption_strength: 'Low' },
-      wave_parameters: { wave_difficulty: 1.0, malware_type: 'STANDARD', stat_multipliers: { hp: 1.0, speed: 1.0 } },
-      exploit_kit_update: { suggested_cards_ids: ['basic_firewall', 'protocol_sentry'], reasoning: 'API Latency detected. Defaulting to safe kit.' },
-      tactical_analysis: { skill_gap_identified: 'N/A', causal_justification: 'Connectivity interrupted.' },
-      kernel_log_message: '[SYS] SIGNAL_LOSS: LOCAL_RECOVERY_ENGAGED.'
-    };
+    return fallback;
   }
 };
 
@@ -209,11 +234,11 @@ export const getVisualDiagnostic = async (
 ): Promise<VisualDiagnosticResponse | null> => {
   try {
     const imageData = base64Image.split(',')[1];
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: { parts: [
         { inlineData: { mimeType: 'image/jpeg', data: imageData } },
-        { text: `Analyze grid. Identify weak sector. Propose counter-measure from IDs: basic_firewall, quantum_gate, scout_sensor, deep_packet_inspector, static_burst, neural_tempest, corrosive_script, logic_bomb, vpn_tunnel, protocol_sentry, synapse_fryer, brain_jack.` }
+        { text: `Analyze grid. Identify weak sector. Propose counter-measure.` }
       ] },
       config: {
         systemInstruction: "Aegis Visual Unit. Return JSON ONLY.",
@@ -230,14 +255,13 @@ export const getVisualDiagnostic = async (
           required: ["weakest_sector", "analysis", "suggested_card_id", "severity_level"]
         }
       },
-    });
+    }));
     
     const rawJson = JSON.parse(response.text || '{}');
     
-    // Defensive Validation for Visual Diagnostic
     return {
       weakest_sector: rawJson.weakest_sector || 'Sector Alpha-0',
-      analysis: rawJson.analysis || 'Standard scanning failed to identify specific anomalies. General reinforcement advised.',
+      analysis: rawJson.analysis || 'Scan identified minor vulnerabilities.',
       suggested_card_id: rawJson.suggested_card_id || 'protocol_sentry',
       severity_level: rawJson.severity_level || 'Low'
     };
@@ -260,19 +284,16 @@ export const getRedemptionCard = async (
       PLAYER_PROFILE_JSON (Last Sessions):
       ${JSON.stringify(history)}
 
-      HISTORICAL_ANALYSIS_TASK:
-      Analyze these sessions to identify a persistent failure pattern (e.g., losing repeatedly on Wave 12).
-      Synthesize a one-time "Redemption Card" (LEGENDARY rarity) specifically designed to mitigate this historical weakness.
-      The card must adhere to the Neural Shock (debuff/AoE) or Encrypted Firewall (defense/retaliation) archetypes.
+      Synthesize a one-time "Redemption Card" (LEGENDARY rarity) specifically designed to mitigate a persistent historical weakness.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are the Aegis OS Kernel (Strategic Layer). Use High thinking budget to perform long-context historical analysis. Synthesize a powerful Redemption Card. Output JSON ONLY.",
+        systemInstruction: "You are the Aegis OS Kernel. Synthesize a powerful Redemption Card. Output JSON ONLY.",
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 16384 },
+        thinkingConfig: { thinkingBudget: 4096 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -296,13 +317,10 @@ export const getRedemptionCard = async (
           required: ["id", "name", "description", "cost", "type", "rarity", "stats"]
         }
       }
-    });
+    }));
 
     const rawJson = JSON.parse(response.text || '{}');
-    
-    // Basic structural validation for the redemption card
     if (!rawJson.name || !rawJson.id) return null;
-    
     return rawJson as Card;
   } catch (error) {
     console.error("Redemption Synthesis Error:", error);
