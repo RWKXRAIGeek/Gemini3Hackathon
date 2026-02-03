@@ -779,6 +779,9 @@ const App: React.FC = () => {
     });
   }, [gameState.statusLog]);
 
+  const isDiagnosticDisabled = !gameState.isGameStarted || gameState.kernelHP <= 0;
+  const isBreachDisabled = activeWave || gameState.isProcessing || !gameState.isGameStarted || gameState.kernelHP <= 0;
+
   return (
     <div 
       className={mainWrapperClass}
@@ -832,18 +835,20 @@ const App: React.FC = () => {
         <footer className="p-4 border-t border-[#1A2A40] bg-[#1A2A40]/5 space-y-2">
            <button 
             onClick={toggleTacticalOverlay}
-            disabled={!gameState.isGameStarted}
+            disabled={isDiagnosticDisabled}
             className={`w-full py-2 border font-black text-[9px] tracking-[0.2em] transition-all uppercase rounded ${
-              gameState.isTacticalOverlayOpen ? "border-[#3DDCFF] text-[#3DDCFF] animate-pulse" : "border-[#1A2A40] text-gray-500 hover:text-[#3DDCFF] hover:border-[#3DDCFF]"
+              isDiagnosticDisabled ? "border-[#1A2A40] text-gray-800 opacity-50 grayscale pointer-events-none" :
+              gameState.isTacticalOverlayOpen ? "border-[#3DDCFF] text-[#3DDCFF] animate-pulse" : 
+              "border-[#1A2A40] text-gray-500 hover:text-[#3DDCFF] hover:border-[#3DDCFF]"
             }`}
           >
             {gameState.isTacticalOverlayOpen ? "CLOSE_TACTICAL" : "VISUAL_DIAGNOSTIC"}
           </button>
           <button 
             onClick={startWave}
-            disabled={activeWave || gameState.isProcessing || !gameState.isGameStarted}
+            disabled={isBreachDisabled}
             className={`w-full py-4 border-2 font-black text-xs tracking-[0.3em] transition-all uppercase rounded ${
-              activeWave || gameState.isProcessing || !gameState.isGameStarted ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10 shadow-[0_0_15px_rgba(61,220,255,0.2)]"
+              isBreachDisabled ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10 shadow-[0_0_15px_rgba(61,220,255,0.2)]"
             }`}
           >
             {gameState.isProcessing ? "REASONING..." : "INIT_BREACH"}
