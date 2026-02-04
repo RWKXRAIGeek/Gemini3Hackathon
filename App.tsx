@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, GameState, Point, CardType, SessionSummary } from './types';
-import { GRID_SIZE, TILE_SIZE, INITIAL_DECK, MAX_ENERGY, MASTER_CARD_POOL, INITIAL_HP } from './constants';
+import { GRID_SIZE, TILE_SIZE, INITIAL_DECK, MAX_ENERGY, MASTER_CARD_POOL, INITIAL_HP, MAX_WAVES } from './constants';
 import { getAegisReasoning, getVisualDiagnostic, getRedemptionCard, speak } from './services/gemini';
 import { SecurityNode, MalwarePacket, FirewallBuffer } from './utils/gameClasses';
 
@@ -77,6 +77,7 @@ const App: React.FC = () => {
     isGameStarted: false,
     isTacticalOverlayOpen: false,
     isWaveSummaryOpen: false,
+    isVictory: false,
     statusLog: ['[SYS_INIT] AEGIS OS BOOTING...', '[SYS_INIT] KERNEL CORE ACTIVE.'],
     history: JSON.parse(localStorage.getItem('aegis_history') || '[]'),
     totalCardsDeployed: 0,
@@ -238,6 +239,7 @@ const App: React.FC = () => {
       isGameStarted: true,
       isTacticalOverlayOpen: false,
       isWaveSummaryOpen: false,
+      isVictory: false,
       lastGeminiResponse: undefined,
       lastDiagnostic: undefined,
       redemptionCard: undefined,
@@ -342,11 +344,28 @@ const App: React.FC = () => {
     setActiveWave(false);
     setSelectedNodeIndex(null);
     setReroutingNodeIndex(null);
-    setGameState(prev => ({ ...prev, isWaveSummaryOpen: true }));
-    addLog('[SYS] SECTOR STABILIZED. PREPARING TELEMETRY AUDIT...');
-  }, []);
+    
+    const waveJustCompleted = gameState.waveNumber + 1;
+    const isFinalWave = waveJustCompleted >= MAX_WAVES;
+    
+    if (isFinalWave) {
+      setGameState(prev => ({ 
+        ...prev, 
+        isWaveSummaryOpen: true, 
+        isVictory: true,
+        waveNumber: waveJustCompleted // Increment to show wave 5 completed
+      }));
+      addLog('[AEGIS] SYSTEM PURIFIED. ALL MALWARE VANQUISHED.');
+      speak("Sector sanitized. Core integrity maintained. Congratulations, operator.");
+    } else {
+      setGameState(prev => ({ ...prev, isWaveSummaryOpen: true }));
+      addLog('[SYS] SECTOR STABILIZED. PREPARING TELEMETRY AUDIT...');
+    }
+  }, [gameState.waveNumber]);
 
   const proceedToNextCycle = async () => {
+    if (gameState.isVictory) return;
+    
     setGameState(prev => ({ ...prev, isWaveSummaryOpen: false, isProcessing: true }));
     addLog('[SYS] BREACH EVENT CONCLUDED. ANALYZING DATA...');
 
@@ -390,12 +409,20 @@ const App: React.FC = () => {
   };
 
   const abortAuditAndTerminate = () => {
+    if (gameState.isVictory) return;
     setGameState(prev => ({ 
       ...prev, 
       kernelHP: 0
     }));
     addLog('[CRITICAL] USER TERMINATION PROTOCOL ENGAGED.');
     speak("Audit aborted. System termination requested. Processing final telemetry.");
+  };
+
+  const closeSummaryAndShowAudit = () => {
+    setGameState(prev => ({ ...prev, isWaveSummaryOpen: false }));
+    if (gameState.isVictory || gameState.kernelHP <= 0) {
+      generateAuditReport();
+    }
   };
 
   const toggleSelect = (idx: number) => {
@@ -515,7 +542,6 @@ const App: React.FC = () => {
       const node = gameRef.current.nodes[reroutingNodeIndex];
       const cost = Math.max(1, Math.floor(node.card.cost * 0.1));
       
-      // FIXED: Using x and y instead of undefined i and j
       const occupied = gameRef.current.nodes.find(n => n.gridX === x && n.gridY === y);
       if (occupied) {
         addLog('[ERROR] PORT OCCUPIED. REROUTE CANCELLED.');
@@ -860,8 +886,8 @@ const App: React.FC = () => {
     });
   }, [gameState.statusLog]);
 
-  const isDiagnosticDisabled = !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen;
-  const isBreachDisabled = activeWave || gameState.isProcessing || !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen;
+  const isDiagnosticDisabled = !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory;
+  const isBreachDisabled = activeWave || gameState.isProcessing || !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory;
 
   const recentLogsForSummary = useMemo(() => {
     return gameState.statusLog
@@ -1053,27 +1079,27 @@ const App: React.FC = () => {
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] animate-pulse"></div>
               
               <header className="mb-6 border-b border-[#3DDCFF]/30 pb-4">
-                <h2 className="text-3xl font-black italic text-white tracking-tighter uppercase mb-1">
-                  [INTER-WAVE_TELEMETRY_DATA_SYNC_0x{gameState.waveNumber.toString(16).toUpperCase()}]
+                <h2 className={`text-3xl font-black italic text-white tracking-tighter uppercase mb-1 ${gameState.isVictory ? 'text-[#9CFF57]' : ''}`}>
+                  {gameState.isVictory ? '[STATUS_REPORT: SECTOR_PURIFIED]' : `[INTER-WAVE_TELEMETRY_DATA_SYNC_0x${gameState.waveNumber.toString(16).toUpperCase()}]`}
                 </h2>
-                <div className="text-[#3DDCFF] text-[11px] font-mono tracking-[0.3em] uppercase italic opacity-80">
-                  SECTOR STABILIZED. ANALYZING THROUGHPUT FOR NEXT THREAT CYCLE.
+                <div className={`text-[11px] font-mono tracking-[0.3em] uppercase italic opacity-80 ${gameState.isVictory ? 'text-[#9CFF57]' : 'text-[#3DDCFF]'}`}>
+                  {gameState.isVictory ? '>> CONGRATULATIONS. ALL MALWARE SIGNATURES VANQUISHED. MAIN_CORE_STABILIZED.' : 'SECTOR STABILIZED. ANALYZING THROUGHPUT FOR NEXT THREAT CYCLE.'}
                 </div>
               </header>
 
               <div className="grid grid-cols-2 gap-8 mb-8">
                 <section>
-                  <h3 className="text-[#3DDCFF] font-black text-[11px] mb-3 tracking-[0.2em] uppercase italic">>> CUMULATIVE_SESSION_STATS</h3>
-                  <div className="border border-[#3DDCFF]/20 bg-[#3DDCFF]/5 p-2 font-mono text-[11px]">
-                    <div className="flex justify-between py-2 border-b border-[#3DDCFF]/10">
+                  <h3 className={`font-black text-[11px] mb-3 tracking-[0.2em] uppercase italic ${gameState.isVictory ? 'text-[#9CFF57]' : 'text-[#3DDCFF]'}`}>>> CUMULATIVE_SESSION_STATS</h3>
+                  <div className={`border bg-black/20 p-2 font-mono text-[11px] ${gameState.isVictory ? 'border-[#9CFF57]/20' : 'border-[#3DDCFF]/20'}`}>
+                    <div className="flex justify-between py-2 border-b border-white/5">
                       <span className="opacity-60 uppercase font-bold">CURRENT_SECTOR_ID</span>
                       <span className="font-black text-white">{gameState.waveNumber}</span>
                     </div>
-                    <div className="flex justify-between py-2 border-b border-[#3DDCFF]/10">
+                    <div className="flex justify-between py-2 border-b border-white/5">
                       <span className="opacity-60 uppercase font-bold">MALWARE_PURGED</span>
                       <span className="font-black text-white">{gameRef.current.defeatedCount}</span>
                     </div>
-                    <div className="flex justify-between py-2 border-b border-[#3DDCFF]/10">
+                    <div className="flex justify-between py-2 border-b border-white/5">
                       <span className="opacity-60 uppercase font-bold">SYSTEM_LOAD</span>
                       <span className="font-black text-white">{gameRef.current.nodes.length} NDS / {gameState.hand.length} PAYLDS</span>
                     </div>
@@ -1085,11 +1111,11 @@ const App: React.FC = () => {
                 </section>
 
                 <section className="flex flex-col">
-                  <h3 className="text-[#3DDCFF] font-black text-[11px] mb-3 tracking-[0.2em] uppercase italic">>> LIVE_NODE_SNAPSHOT</h3>
+                  <h3 className={`font-black text-[11px] mb-3 tracking-[0.2em] uppercase italic ${gameState.isVictory ? 'text-[#9CFF57]' : 'text-[#3DDCFF]'}`}>>> LIVE_NODE_SNAPSHOT</h3>
                   <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-[#1A2A40] pr-2 max-h-[160px]">
                     {gameRef.current.nodes.map((node, i) => (
-                      <div key={i} className="p-2 border border-[#3DDCFF]/20 bg-black/40 text-[10px] font-mono flex justify-between">
-                        <span className="text-[#3DDCFF] font-black uppercase">{node.card.name}</span>
+                      <div key={i} className={`p-2 border bg-black/40 text-[10px] font-mono flex justify-between ${gameState.isVictory ? 'border-[#9CFF57]/20' : 'border-[#3DDCFF]/20'}`}>
+                        <span className={`font-black uppercase ${gameState.isVictory ? 'text-[#9CFF57]' : 'text-[#3DDCFF]'}`}>{node.card.name}</span>
                         <span className="text-white">K: {node.killCount} | T: {Math.floor(node.upTime)}s</span>
                       </div>
                     ))}
@@ -1101,7 +1127,7 @@ const App: React.FC = () => {
               </div>
 
               <section className="mb-8">
-                <h3 className="text-[#3DDCFF] font-black text-[11px] mb-2 tracking-[0.2em] uppercase italic">>> RECENT_LOG_TELEMETRY</h3>
+                <h3 className={`font-black text-[11px] mb-2 tracking-[0.2em] uppercase italic ${gameState.isVictory ? 'text-[#9CFF57]' : 'text-[#3DDCFF]'}`}>>> RECENT_LOG_TELEMETRY</h3>
                 <div className="p-3 bg-black/40 border border-gray-800 font-mono text-[10px] space-y-1">
                   {recentLogsForSummary.map((log, i) => (
                     <div key={i} className="text-gray-500 leading-tight uppercase truncate">{log}</div>
@@ -1114,24 +1140,24 @@ const App: React.FC = () => {
 
               <footer className="grid grid-cols-2 gap-4 mt-auto">
                 <button 
-                  disabled={gameState.kernelHP <= 0}
+                  disabled={gameState.kernelHP <= 0 || gameState.isVictory}
                   onClick={proceedToNextCycle} 
-                  className={`py-5 font-black uppercase tracking-[0.5em] transition-all text-sm ${gameState.kernelHP <= 0 ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
+                  className={`py-5 font-black uppercase tracking-[0.5em] transition-all text-sm ${(gameState.kernelHP <= 0 || gameState.isVictory) ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
                 >
                   [PROCEED_TO_NEXT_CYCLE]
                 </button>
                 <button 
-                  disabled={gameState.kernelHP <= 0}
+                  disabled={gameState.kernelHP <= 0 || gameState.isVictory}
                   onClick={abortAuditAndTerminate} 
-                  className={`py-5 border-2 font-black uppercase tracking-[0.4em] transition-all text-sm flex flex-col items-center justify-center leading-tight ${gameState.kernelHP <= 0 ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
+                  className={`py-5 border-2 font-black uppercase tracking-[0.4em] transition-all text-sm flex flex-col items-center justify-center leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory) ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
                 >
                   <span>Abort_Audit &</span>
                   <span>Terminate</span>
                 </button>
-                {gameState.kernelHP <= 0 && (
+                {(gameState.kernelHP <= 0 || gameState.isVictory) && (
                   <button 
-                    onClick={() => setGameState(prev => ({ ...prev, isWaveSummaryOpen: false }))}
-                    className="col-span-2 py-5 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-[0.5em] hover:bg-[#3DDCFF]/10 transition-all text-sm mt-2"
+                    onClick={closeSummaryAndShowAudit}
+                    className={`col-span-2 py-5 border-2 font-black uppercase tracking-[0.5em] hover:bg-opacity-10 transition-all text-sm mt-2 ${gameState.isVictory ? 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]' : 'border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]'}`}
                   >
                     [CLOSE_AUDIT_LOG]
                   </button>
@@ -1143,8 +1169,8 @@ const App: React.FC = () => {
 
         {auditReport && (
           <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-xl p-8 overflow-y-auto">
-            <div className="relative p-8 holographic-panel border-2 border-[#9CFF57] shadow-[0_0_50px_rgba(156,255,87,0.2)] max-w-4xl w-full animate-monitor-on flex flex-col max-h-full">
-              <div className="absolute top-0 left-0 w-full h-1 bg-[#9CFF57] animate-pulse"></div>
+            <div className={`relative p-8 holographic-panel border-2 shadow-[0_0_50px_rgba(156,255,87,0.2)] max-w-4xl w-full animate-monitor-on flex flex-col max-h-full ${gameState.isVictory ? 'border-[#9CFF57]' : 'border-[#9CFF57]'}`}>
+              <div className={`absolute top-0 left-0 w-full h-1 animate-pulse ${gameState.isVictory ? 'bg-[#9CFF57]' : 'bg-[#9CFF57]'}`}></div>
               
               <header className="mb-6 flex justify-between items-end border-b border-[#9CFF57]/30 pb-4">
                 <div>
@@ -1152,10 +1178,14 @@ const App: React.FC = () => {
                     [POST_MORTEM_AUDIT_REPORT_0x{auditReport.timestamp}]
                     <span className="ml-2 w-2 h-6 bg-[#9CFF57] animate-pulse"></span>
                   </h2>
-                  <div className="text-[#9CFF57] text-[10px] font-mono tracking-[0.3em] uppercase opacity-70 italic">CORE TERMINATION WAS INEVITABLE. ANALYZING INEFFICIENCIES...</div>
+                  <div className="text-[#9CFF57] text-[10px] font-mono tracking-[0.3em] uppercase opacity-70 italic">
+                    {gameState.isVictory ? 'CORE INTEGRITY PRESERVED. TOTAL SYSTEM SANITIZATION COMPLETE.' : 'CORE TERMINATION WAS INEVITABLE. ANALYZING INEFFICIENCIES...'}
+                  </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-red-500 font-black text-xs uppercase animate-pulse">BREACH_STATUS: CRITICAL</span>
+                  <span className={`font-black text-xs uppercase animate-pulse ${gameState.isVictory ? 'text-[#9CFF57]' : 'text-red-500'}`}>
+                    BREACH_STATUS: {gameState.isVictory ? 'PURIFIED' : 'CRITICAL'}
+                  </span>
                 </div>
               </header>
 
@@ -1228,27 +1258,13 @@ const App: React.FC = () => {
                 </div>
               </section>
 
-              <footer className="mt-auto grid grid-cols-2 gap-4">
+              <footer className="mt-auto flex justify-center">
                 <button 
                   onClick={resetGame} 
-                  className="py-5 bg-[#9CFF57] text-black font-black uppercase tracking-[0.5em] hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all text-sm"
+                  className="w-1/2 py-5 bg-[#9CFF57] text-black font-black uppercase tracking-[0.5em] hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all text-sm"
                 >
                   REBOOT_KERNEL
                 </button>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => setIsAboutOpen(true)} 
-                    className="py-5 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-[0.4em] hover:bg-[#3DDCFF]/10 transition-all text-[11px]"
-                  >
-                    SYSTEM_MANIFESTO
-                  </button>
-                  <button 
-                    onClick={() => setAuditReport(null)}
-                    className="py-5 border-2 border-red-500 text-red-500 font-black uppercase tracking-[0.4em] hover:bg-red-500/10 transition-all text-[11px]"
-                  >
-                    CLOSE_REPORT
-                  </button>
-                </div>
               </footer>
             </div>
           </div>
@@ -1292,7 +1308,7 @@ const App: React.FC = () => {
                 <div 
                   key={card.id + '-' + i} 
                   onClick={() => toggleSelect(i)} 
-                  className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${rarityClasses} ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${!canAfford ? 'opacity-40 grayscale' : ''}`}
+                  className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${rarityClasses} ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${(!canAfford || gameState.isVictory) ? 'opacity-40 grayscale pointer-events-none' : ''}`}
                 >
                   <div className={`card-scanline ${scanlineOpacity}`}></div>
                   <div className="flex justify-between items-start mb-2 relative z-10"><span className="text-[10px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId}</span><div className="flex items-center"><span className={`text-[13px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span><span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span></div></div>
@@ -1312,7 +1328,7 @@ const App: React.FC = () => {
           </div>
         </section>
         <footer className="p-4 bg-[#1A2A40]/10 border-t border-[#1A2A40] space-y-3">
-          <button disabled={!canFuse} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse shadow-[0_0_15px_rgba(156,255,87,0.2)]" : "border-gray-800 text-gray-800 opacity-50"}`}>FUSE_SIGNATURES</button>
+          <button disabled={!canFuse || gameState.isVictory} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse shadow-[0_0_15px_rgba(156,255,87,0.2)]" : "border-gray-800 text-gray-800 opacity-50"}`}>FUSE_SIGNATURES</button>
         </footer>
       </aside>
 

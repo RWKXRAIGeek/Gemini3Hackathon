@@ -74,6 +74,7 @@ export interface GameState {
   isGameStarted: boolean;
   isTacticalOverlayOpen: boolean;
   isWaveSummaryOpen: boolean; // Tracking inter-wave UI
+  isVictory: boolean; // Victory tracking
   statusLog: string[];
   lastGeminiResponse?: AegisResponse;
   lastDiagnostic?: VisualDiagnosticResponse;

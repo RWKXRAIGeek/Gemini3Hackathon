@@ -5,6 +5,7 @@ export const GRID_SIZE = 10;
 export const TILE_SIZE = 60;
 export const MAX_ENERGY = 50;
 export const INITIAL_HP = 100;
+export const MAX_WAVES = 5;
 
 export const MASTER_CARD_POOL: Record<string, Card> = {
   'basic_firewall': {
