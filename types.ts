@@ -73,14 +73,14 @@ export interface GameState {
   isScanning: boolean;
   isGameStarted: boolean;
   isTacticalOverlayOpen: boolean;
+  isWaveSummaryOpen: boolean; // Tracking inter-wave UI
   statusLog: string[];
   lastGeminiResponse?: AegisResponse;
   lastDiagnostic?: VisualDiagnosticResponse;
   history: SessionSummary[];
   redemptionCard?: Card;
-  // Audit Tracking
-  totalCardsDeployed: number;
-  advisoryCount: number;
+  totalCardsDeployed: number; // Cumulative tracking
+  advisoryCount: number; // Cumulative tracking
 }
 
 export interface Point {
