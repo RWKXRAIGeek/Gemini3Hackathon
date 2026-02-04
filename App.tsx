@@ -342,7 +342,6 @@ const App: React.FC = () => {
     setActiveWave(false);
     setSelectedNodeIndex(null);
     setReroutingNodeIndex(null);
-    // Instead of immediately starting AI reasoning, show summary first
     setGameState(prev => ({ ...prev, isWaveSummaryOpen: true }));
     addLog('[SYS] SECTOR STABILIZED. PREPARING TELEMETRY AUDIT...');
   }, []);
@@ -393,8 +392,7 @@ const App: React.FC = () => {
   const abortAuditAndTerminate = () => {
     setGameState(prev => ({ 
       ...prev, 
-      kernelHP: 0, 
-      isWaveSummaryOpen: false 
+      kernelHP: 0
     }));
     addLog('[CRITICAL] USER TERMINATION PROTOCOL ENGAGED.');
     speak("Audit aborted. System termination requested. Processing final telemetry.");
@@ -517,6 +515,7 @@ const App: React.FC = () => {
       const node = gameRef.current.nodes[reroutingNodeIndex];
       const cost = Math.max(1, Math.floor(node.card.cost * 0.1));
       
+      // FIXED: Using x and y instead of undefined i and j
       const occupied = gameRef.current.nodes.find(n => n.gridX === x && n.gridY === y);
       if (occupied) {
         addLog('[ERROR] PORT OCCUPIED. REROUTE CANCELLED.');
@@ -1115,17 +1114,28 @@ const App: React.FC = () => {
 
               <footer className="grid grid-cols-2 gap-4 mt-auto">
                 <button 
+                  disabled={gameState.kernelHP <= 0}
                   onClick={proceedToNextCycle} 
-                  className="py-5 bg-[#3DDCFF] text-black font-black uppercase tracking-[0.5em] hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all text-sm glitch-hover"
+                  className={`py-5 font-black uppercase tracking-[0.5em] transition-all text-sm ${gameState.kernelHP <= 0 ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
                 >
                   [PROCEED_TO_NEXT_CYCLE]
                 </button>
                 <button 
+                  disabled={gameState.kernelHP <= 0}
                   onClick={abortAuditAndTerminate} 
-                  className="py-5 border-2 border-red-500 text-red-500 font-black uppercase tracking-[0.4em] hover:bg-red-500/10 transition-all text-sm"
+                  className={`py-5 border-2 font-black uppercase tracking-[0.4em] transition-all text-sm flex flex-col items-center justify-center leading-tight ${gameState.kernelHP <= 0 ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
                 >
-                  [ABORT_AUDIT_&_TERMINATE]
+                  <span>Abort_Audit &</span>
+                  <span>Terminate</span>
                 </button>
+                {gameState.kernelHP <= 0 && (
+                  <button 
+                    onClick={() => setGameState(prev => ({ ...prev, isWaveSummaryOpen: false }))}
+                    className="col-span-2 py-5 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-[0.5em] hover:bg-[#3DDCFF]/10 transition-all text-sm mt-2"
+                  >
+                    [CLOSE_AUDIT_LOG]
+                  </button>
+                )}
               </footer>
             </div>
           </div>
@@ -1225,12 +1235,20 @@ const App: React.FC = () => {
                 >
                   REBOOT_KERNEL
                 </button>
-                <button 
-                  onClick={() => setIsAboutOpen(true)} 
-                  className="py-5 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-[0.4em] hover:bg-[#3DDCFF]/10 transition-all text-sm"
-                >
-                  SYSTEM_MANIFESTO
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => setIsAboutOpen(true)} 
+                    className="py-5 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-[0.4em] hover:bg-[#3DDCFF]/10 transition-all text-[11px]"
+                  >
+                    SYSTEM_MANIFESTO
+                  </button>
+                  <button 
+                    onClick={() => setAuditReport(null)}
+                    className="py-5 border-2 border-red-500 text-red-500 font-black uppercase tracking-[0.4em] hover:bg-red-500/10 transition-all text-[11px]"
+                  >
+                    CLOSE_REPORT
+                  </button>
+                </div>
               </footer>
             </div>
           </div>
