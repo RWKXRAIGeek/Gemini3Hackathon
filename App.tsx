@@ -13,6 +13,12 @@ const mockSystemVulnerabilities = [
   { addr: "0x1A22", status: "UNAUTHORIZED_SESS", risk: "HIGH" },
 ];
 
+const vulnerabilityPriority: Record<string, number> = {
+  'CRITICAL': 0,
+  'HIGH': 1,
+  'LOW': 2
+};
+
 interface DeployParticle {
   x: number;
   y: number;
@@ -236,13 +242,12 @@ const App: React.FC = () => {
     setSelectedIndices(prev => {
       if (prev.includes(idx)) return prev.filter(i => i !== idx);
       if (prev.length < 2) return [...prev, idx];
-      return [idx]; // Replace first if already 2 selected? Or just ignore? Let's just allow switching.
+      return [idx];
     });
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Numerical Shortcuts for Cards 1-5
       if (e.key >= '1' && e.key <= '5') {
         const idx = parseInt(e.key) - 1;
         if (gameState.sessionActive && gameState.hand[idx] && !gameState.isProcessing && !activeWave) {
@@ -250,13 +255,11 @@ const App: React.FC = () => {
         }
       }
 
-      // Space to Start Wave
       if (e.key === ' ' && !isBreachDisabled) {
         e.preventDefault();
         startWave();
       }
 
-      // Tab for Tactical Overlay
       if (e.key === 'Tab' && !isDiagnosticDisabled) {
         e.preventDefault();
         toggleTacticalOverlay();
@@ -472,7 +475,6 @@ const App: React.FC = () => {
         advisoryCount: prev.advisoryCount + 1
       }));
       
-      // Update local gameRef values to match React state sync
       gameRef.current.currentEnergy = Math.min(MAX_ENERGY, gameRef.current.currentEnergy + 15);
       gameRef.current.difficultyMultiplier = aegis.wave_parameters.wave_difficulty;
       drawHand(newHand);
@@ -706,7 +708,6 @@ const App: React.FC = () => {
     if (!ctx) return;
     let requestRef: number;
     
-    // Throttled UI sync: Sync refs to state at a stable frequency
     const syncUI = () => {
       setGameState(prev => {
         const hpChanged = prev.kernelHP !== gameRef.current.currentHP;
@@ -722,7 +723,6 @@ const App: React.FC = () => {
       });
     };
     
-    // We can run UI sync inside loop but with a check for actual changes
     const loop = (time: number) => {
       const dt = (time - gameRef.current.lastFrameTime) / 1000;
       gameRef.current.lastFrameTime = time;
@@ -958,7 +958,6 @@ const App: React.FC = () => {
       addLog(`[SYS] FUSING DATA SIGNATURES: ${card1.name} x2 -> ${fusedCard.name}`);
       setGameState(prev => {
         const newHand = [...prev.hand];
-        // Sort indices descending to splice correctly
         const toRemove = [i1, i2].sort((a, b) => b - a);
         newHand.splice(toRemove[0], 1);
         newHand.splice(toRemove[1], 1);
@@ -1023,7 +1022,6 @@ const App: React.FC = () => {
       .slice(0, 3);
   }, [gameState.statusLog]);
 
-  // Dynamic upgrade button text
   const upgradeBtnText = useMemo(() => {
     if (selectedIndices.length === 0) return "[SELECT_PAYLOAD]";
     if (selectedIndices.length === 1) return "[SELECT_MATCHING_PAIR]";
@@ -1033,6 +1031,13 @@ const App: React.FC = () => {
     if (!card1?.fusionTargetId) return "[MAX_UPGRADE_REACHED]";
     return "[COMPILE_UPGRADE]";
   }, [selectedIndices, gameState.hand]);
+
+  // Priority sorted vulnerability index
+  const sortedVulnerabilities = useMemo(() => {
+    return [...mockSystemVulnerabilities].sort((a, b) => {
+      return vulnerabilityPriority[a.risk] - vulnerabilityPriority[b.risk];
+    });
+  }, []);
 
   return (
     <div 
@@ -1158,43 +1163,66 @@ const App: React.FC = () => {
         </div>
 
         {gameState.isTacticalOverlayOpen && (
-          <div className="absolute inset-0 z-40 bg-[#050814]/80 backdrop-blur-md flex items-center justify-center p-12 cursor-default" onClick={toggleTacticalOverlay}>
-            <div className="scanline-overlay"></div>
-            <div className="w-full h-full border-4 border-[#3DDCFF] holographic-panel shadow-[0_0_50px_rgba(61,220,255,0.3)] relative p-8 flex flex-col overflow-hidden animate-slide-left flicker" onClick={(e) => e.stopPropagation()}>
-              <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] animate-pulse"></div>
-              <div className="flex justify-between items-start mb-8 border-b border-[#3DDCFF]/30 pb-4">
-                <div><h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Tactical_Diagnostic</h2><div className="text-[#3DDCFF] text-[11px] tracking-[0.5em] font-black mt-1 uppercase">Deep_Scan_V2 // Sector_Analysis</div></div>
-                <div className="flex space-x-2">
-                   <button onClick={runVisualDiagnostic} disabled={gameState.isScanning} className="px-6 py-2 border-2 border-yellow-500 text-yellow-500 font-black uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all text-xs glitch-hover">{gameState.isScanning ? "SCANNING..." : "[RUN_NEW_SCAN]"}</button>
-                  <button onClick={toggleTacticalOverlay} className="px-6 py-2 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-widest hover:bg-[#3DDCFF] hover:text-black transition-all text-xs">[CLOSE_OVERLAY]</button>
+          <div className="absolute inset-0 z-40 bg-[#050814]/90 backdrop-blur-md flex items-center justify-center p-4 cursor-default" onClick={toggleTacticalOverlay}>
+            <div className="w-full max-w-6xl max-h-[85vh] border-2 border-[#3DDCFF] holographic-panel shadow-[0_0_50px_rgba(61,220,255,0.2)] relative p-6 flex flex-col overflow-hidden animate-monitor-on flicker" style={{ scrollbarGutter: 'stable' }} onClick={(e) => e.stopPropagation()}>
+              <div className="scanline-overlay opacity-30"></div>
+              <div className="absolute top-0 left-0 w-full h-0.5 bg-[#3DDCFF] animate-pulse"></div>
+              
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-[#3DDCFF]/30 pb-3 gap-4">
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-white italic tracking-tighter uppercase">Tactical_Diagnostic</h2>
+                  <div className="text-[#3DDCFF] text-[9px] tracking-[0.4em] font-black mt-0.5 uppercase opacity-80">Deep_Scan_Engine // Wave_Telemetry_0x{gameState.waveNumber}</div>
+                </div>
+                <div className="flex space-x-2 w-full md:w-auto">
+                   <button onClick={runVisualDiagnostic} disabled={gameState.isScanning} className="flex-1 md:flex-none px-4 py-1.5 border border-yellow-500 text-yellow-500 font-black uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all text-[10px]">{gameState.isScanning ? "SCANNING..." : "[INIT_SCAN]"}</button>
+                  <button onClick={toggleTacticalOverlay} className="flex-1 md:flex-none px-4 py-1.5 border border-[#3DDCFF] text-[#3DDCFF] font-black uppercase tracking-widest hover:bg-[#3DDCFF] hover:text-black transition-all text-[10px]">[CLOSE_OS]</button>
                 </div>
               </div>
-              <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
-                <div className="flex flex-col space-y-6 overflow-hidden">
-                  <div className="p-4 border border-[#3DDCFF]/30 bg-[#3DDCFF]/5 flex-1 flex flex-col">
-                    <div className="text-[#3DDCFF] font-black text-[11px] mb-4 tracking-widest italic uppercase">>> Gemini_Visual_Intelligence</div>
+
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden">
+                <div className="flex flex-col space-y-4 overflow-hidden">
+                  <div className="p-4 border border-[#3DDCFF]/20 bg-[#3DDCFF]/5 flex-1 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-[#1A2A40]">
+                    <div className="text-[#3DDCFF] font-black text-[10px] mb-3 tracking-[0.3em] uppercase italic">>> Visual_Intelligence_Unit</div>
                     {gameState.lastDiagnostic ? (
-                      <div className="space-y-4 animate-in fade-in duration-700">
-                        <div className="flex justify-between items-center bg-yellow-900/20 p-2 border border-yellow-500/30"><span className="text-yellow-500 font-black text-xs uppercase">Weakest_Sector:</span><span className="text-white font-black text-lg">{gameState.lastDiagnostic.weakest_sector}</span></div>
-                        <div className="text-gray-300 text-sm leading-relaxed italic font-mono border-l-2 border-yellow-500 pl-4">"{gameState.lastDiagnostic.analysis}"</div>
-                        <div className="p-2 border border-[#9CFF57]/30 bg-[#9CFF57]/5"><span className="text-[#9CFF57] font-black text-[11px] uppercase block mb-1">Recommended_Patch:</span><span className="text-white font-bold">{MASTER_CARD_POOL[gameState.lastDiagnostic.suggested_card_id]?.name || 'Adaptive Protocol'}</span></div>
+                      <div className="space-y-4 animate-in fade-in duration-500">
+                        <div className="flex justify-between items-center bg-yellow-900/10 p-2 border border-yellow-500/20">
+                          <span className="text-yellow-500 font-black text-[10px] uppercase tracking-wider">Sector_Leak_ID:</span>
+                          <span className="text-white font-black text-base">{gameState.lastDiagnostic.weakest_sector}</span>
+                        </div>
+                        <div className="text-gray-300 text-[11px] leading-relaxed italic font-mono border-l-2 border-yellow-500 pl-4 bg-black/20 p-2">"{gameState.lastDiagnostic.analysis}"</div>
+                        <div className="p-2 border border-[#9CFF57]/20 bg-[#9CFF57]/5">
+                          <span className="text-[#9CFF57] font-black text-[9px] uppercase block mb-1 tracking-widest">Aegis_Recommendation:</span>
+                          <span className="text-white font-bold text-xs uppercase tracking-tight">{MASTER_CARD_POOL[gameState.lastDiagnostic.suggested_card_id]?.name || 'Adaptive Protocol'}</span>
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center text-gray-700 font-black text-[11px] space-y-4"><div className="animate-spin h-8 w-8 border-2 border-gray-800 border-t-gray-500 rounded-full"></div><span className="tracking-widest">NO_DIAGNOSTIC_DATA_CAPTURED</span><button onClick={runVisualDiagnostic} className="text-[#3DDCFF] underline hover:text-white transition-colors cursor-pointer">INIT_CAPTURE_SEQUENCE</button></div>
+                      <div className="flex-1 flex flex-col items-center justify-center text-gray-700 font-black text-[10px] space-y-3 opacity-50">
+                        <div className="animate-spin h-6 w-6 border-2 border-gray-800 border-t-gray-500 rounded-full"></div>
+                        <span className="tracking-[0.5em]">NO_PAYLOAD_SCANNED</span>
+                        <button onClick={runVisualDiagnostic} className="text-[#3DDCFF] underline hover:text-white transition-colors cursor-pointer text-[9px] uppercase tracking-[0.2em]">INITIALIZE_RECON</button>
+                      </div>
                     )}
                   </div>
-                  <div className="h-1/3 p-4 border border-gray-800 bg-black/40 text-[10px] font-mono text-gray-500 overflow-y-auto scrollbar-thin scrollbar-thumb-[#1A2A40]">
-                    [LOG] Kernal integrity verified at {gameState.kernelHP}% <br/> [LOG] Visual feed synced with deep-think processor. <br/> [LOG] Detected anomalous packet bursts at junction 0x7. <br/> [WARN] Memory latency increasing in Sector B. <br/> [INFO] Aegis Core idling at optimal thermal range. <br/> [INFO] {gameState.hand.length} payload(s) ready for deployment.
+                  <div className="h-24 p-3 border border-gray-800 bg-black/40 text-[9px] font-mono text-gray-500 overflow-y-auto scrollbar-thin scrollbar-thumb-[#1A2A40] leading-tight">
+                    [INFO] Core integrity checked: {gameState.kernelHP}% <br/> [INFO] Vision processor sync status: OPTIMAL <br/> [WARN] Detected jitter in Sector 0x4. <br/> [LOG] Deep-think reasoning update complete.
                   </div>
                 </div>
-                <div className="space-y-4 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-[#1A2A40]">
-                  <div className="text-[11px] text-gray-600 font-black uppercase tracking-widest border-b border-[#1A2A40] mb-4 pb-1 italic">>> SYSTEM_VULNERABILITY_INDEX</div>
-                  {mockSystemVulnerabilities.map((v, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 border border-[#1A2A40] bg-[#1A2A40]/10 hover:bg-[#3DDCFF]/5 transition-colors group">
-                      <div className="flex flex-col"><span className="text-[10px] text-gray-500 font-mono">{v.addr}</span><span className={`text-[12px] font-black tracking-wider ${v.risk === 'CRITICAL' ? 'text-red-500' : 'text-yellow-500'} group-hover:text-white`}>{v.status}</span></div>
-                      <span className={`text-[10px] px-2 py-0.5 font-black border ${v.risk === 'CRITICAL' ? 'border-red-500 text-red-500 animate-pulse' : v.risk === 'HIGH' ? 'border-orange-500 text-orange-500' : 'border-blue-500 text-blue-500'}`}>{v.risk}</span>
+                
+                <div className="flex flex-col space-y-3 overflow-hidden">
+                  <div className="text-[11px] text-gray-500 font-black uppercase tracking-[0.3em] border-b border-[#1A2A40] pb-1 italic">>> VULNERABILITY_PRIORITY_LIST</div>
+                  <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-[#1A2A40]">
+                    <div className="space-y-2">
+                      {sortedVulnerabilities.map((v, i) => (
+                        <div key={i} className="flex justify-between items-center p-2.5 border border-[#1A2A40] bg-black/40 hover:bg-[#3DDCFF]/5 transition-colors group">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] text-gray-600 font-mono tracking-tighter uppercase">{v.addr} // SECTOR_FAULT</span>
+                            <span className={`text-[11px] font-black tracking-wider ${v.risk === 'CRITICAL' ? 'text-red-500' : 'text-yellow-500'} group-hover:text-white uppercase`}>{v.status}</span>
+                          </div>
+                          <span className={`text-[9px] px-2 py-0.5 font-black border ${v.risk === 'CRITICAL' ? 'border-red-500 text-red-500 animate-pulse' : v.risk === 'HIGH' ? 'border-orange-500 text-orange-500' : 'border-blue-500 text-blue-500'} uppercase tracking-tighter`}>{v.risk}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1314,8 +1342,8 @@ const App: React.FC = () => {
 
         {auditReport && (
           <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-xl p-8 overflow-y-auto">
-            <div className={`relative p-8 holographic-panel border-2 shadow-[0_0_50px_rgba(156,255,87,0.2)] max-w-4xl w-full animate-monitor-on flex flex-col max-h-full ${gameState.isVictory ? 'border-[#9CFF57]' : 'border-[#9CFF57]'}`}>
-              <div className={`absolute top-0 left-0 w-full h-1 animate-pulse ${gameState.isVictory ? 'bg-[#9CFF57]' : 'bg-[#9CFF57]'}`}></div>
+            <div className={`relative p-8 holographic-panel border-2 shadow-[0_0_50px_rgba(156,255,87,0.2)] max-w-4xl w-full animate-monitor-on flex flex-col max-h-full border-[#9CFF57]`}>
+              <div className={`absolute top-0 left-0 w-full h-1 animate-pulse bg-[#9CFF57]`}></div>
               
               <header className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end border-b border-[#9CFF57]/30 pb-4 gap-4">
                 <div className="max-w-full overflow-hidden">
@@ -1500,7 +1528,6 @@ const App: React.FC = () => {
                 >
                   <div className={`card-scanline ${scanlineOpacity}`}></div>
                   
-                  {/* Selection Checkbox/Slot Indicator */}
                   <div className={`absolute top-2 right-2 w-5 h-5 border-2 flex items-center justify-center font-black text-[9px] transition-all duration-300 ${isSelected ? "border-[#3DDCFF] bg-[#3DDCFF] text-black" : "border-[#1A2A40] bg-black/40 text-transparent"}`}>
                     {isSelected ? `0${selectionPos + 1}` : ""}
                   </div>
