@@ -999,7 +999,7 @@ const App: React.FC = () => {
 
       <aside className="w-1/4 border-r border-[#1A2A40] flex flex-col bg-[#050814]/50 backdrop-blur-sm z-20">
         <header className="p-4 border-b border-[#1A2A40] flex justify-between items-center bg-[#1A2A40]/10">
-          <span className="font-black text-[#3DDCFF] italic text-xs tracking-wider uppercase">DIAG_ZONE_A</span>
+          <span className="font-black text-[#3DDCFF] italic text-xs tracking-wider uppercase">CORE_SITREP</span>
           <div className="flex space-x-1">
             <div className={`w-2 h-2 rounded-full ${activeWave ? 'bg-red-500 animate-pulse' : 'bg-[#9CFF57]'}`}></div>
             <div className="w-2 h-2 rounded-full bg-[#3DDCFF]"></div>
@@ -1239,14 +1239,14 @@ const App: React.FC = () => {
                 <button 
                   disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive}
                   onClick={proceedToNextCycle} 
-                  className={`py-5 font-black uppercase tracking-[0.5em] transition-all text-sm ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
+                  className={`py-5 font-black uppercase tracking-wider transition-all text-sm flex items-center justify-center text-center whitespace-normal leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
                 >
                   [PROCEED_TO_NEXT_CYCLE]
                 </button>
                 <button 
                   disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive}
                   onClick={abortAuditAndTerminate} 
-                  className={`py-5 border-2 font-black uppercase tracking-[0.4em] transition-all text-sm flex flex-col items-center justify-center leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
+                  className={`py-5 border-2 font-black uppercase tracking-wider transition-all text-sm flex flex-col items-center justify-center text-center whitespace-normal leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
                 >
                   <span>Abort_Audit &</span>
                   <span>Terminate</span>
@@ -1269,24 +1269,24 @@ const App: React.FC = () => {
             <div className={`relative p-8 holographic-panel border-2 shadow-[0_0_50px_rgba(156,255,87,0.2)] max-w-4xl w-full animate-monitor-on flex flex-col max-h-full ${gameState.isVictory ? 'border-[#9CFF57]' : 'border-[#9CFF57]'}`}>
               <div className={`absolute top-0 left-0 w-full h-1 animate-pulse ${gameState.isVictory ? 'bg-[#9CFF57]' : 'bg-[#9CFF57]'}`}></div>
               
-              <header className="mb-6 flex justify-between items-end border-b border-[#9CFF57]/30 pb-4">
-                <div>
-                  <h2 className="text-3xl font-black italic text-white tracking-tighter uppercase mb-1 flex items-center">
+              <header className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end border-b border-[#9CFF57]/30 pb-4 gap-4">
+                <div className="max-w-full overflow-hidden">
+                  <h2 className="text-2xl md:text-3xl font-black italic text-white tracking-tighter uppercase mb-1 whitespace-normal break-words leading-tight">
                     [POST_MORTEM_AUDIT_REPORT_0x{auditReport.timestamp}]
-                    <span className="ml-2 w-2 h-6 bg-[#9CFF57] animate-pulse"></span>
+                    <span className="ml-2 inline-block w-2 h-6 bg-[#9CFF57] animate-pulse align-middle"></span>
                   </h2>
                   <div className="text-[#9CFF57] text-[10px] font-mono tracking-[0.3em] uppercase opacity-70 italic">
                     {gameState.isVictory ? 'CORE INTEGRITY PRESERVED. TOTAL SYSTEM SANITIZATION COMPLETE.' : 'CORE TERMINATION WAS INEVITABLE. ANALYZING INEFFICIENCIES...'}
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-left md:text-right shrink-0">
                   <span className={`font-black text-xs uppercase animate-pulse ${gameState.isVictory ? 'text-[#9CFF57]' : 'text-red-500'}`}>
                     BREACH_STATUS: {gameState.isVictory ? 'PURIFIED' : 'CRITICAL'}
                   </span>
                 </div>
               </header>
 
-              <div className="grid grid-cols-2 gap-8 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <section>
                   <h3 className="text-[#9CFF57] font-black text-[11px] mb-4 tracking-[0.2em] uppercase italic">>> SESSION_METRICS</h3>
                   <div className="holographic-panel bg-[#9CFF57]/5 overflow-hidden">
@@ -1348,7 +1348,7 @@ const App: React.FC = () => {
                 <h3 className="text-[#9CFF57] font-black text-[11px] mb-3 tracking-[0.2em] uppercase italic">>> CRITICAL_INCIDENT_RECAP</h3>
                 <div className="p-4 bg-red-900/5 border border-red-900/20 rounded">
                   {auditReport.criticalIncidents.length > 0 ? auditReport.criticalIncidents.map((incident, i) => (
-                    <div key={i} className="text-[10px] font-mono text-red-400 mb-1 border-l-2 border-red-500 pl-2 leading-tight uppercase">{incident}</div>
+                    <div key={i} className="text-[10px] font-mono text-red-400 mb-1 border-l-2 border-red-500 pl-2 leading-tight uppercase break-words">{incident}</div>
                   )) : (
                     <div className="text-[10px] font-mono text-gray-700 italic uppercase">No critical telemetry flags recorded.</div>
                   )}
@@ -1358,7 +1358,7 @@ const App: React.FC = () => {
               <footer className="mt-auto flex justify-center">
                 <button 
                   onClick={triggerRebootSequence} 
-                  className="w-1/2 py-5 bg-[#9CFF57] text-black font-black uppercase tracking-[0.5em] hover:bg-white transition-all text-sm"
+                  className="w-full md:w-1/2 py-5 bg-[#9CFF57] text-black font-black uppercase tracking-[0.5em] hover:bg-white transition-all text-sm"
                 >
                   REBOOT_KERNEL
                 </button>
@@ -1378,14 +1378,57 @@ const App: React.FC = () => {
       </main>
 
       <aside className="w-1/4 border-l border-[#1A2A40] bg-[#050814]/50 backdrop-blur-sm flex flex-col z-20">
-        <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center"><span className="font-black text-[#9CFF57] italic text-xs tracking-wider uppercase">KIT_ZONE_B</span><span className="text-[11px] text-gray-600 font-mono">HAND: {gameState.hand.length}/5</span></header>
+        <header className="p-4 border-b border-[#1A2A40] bg-[#1A2A40]/10 flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <span className="font-black text-[#9CFF57] italic text-xs tracking-wider uppercase">PAYLOAD_REGISTRY</span>
+            <button 
+              onClick={() => setIsAboutOpen(true)}
+              className="text-[10px] text-[#3DDCFF] border border-[#3DDCFF]/30 px-1 hover:bg-[#3DDCFF]/10 transition-colors rounded font-bold"
+              title="System Manifesto"
+            >
+              [?]
+            </button>
+          </div>
+          <span className="text-[11px] text-gray-600 font-mono">HAND: {gameState.hand.length}/5</span>
+        </header>
         <section className="p-4 border-b border-[#1A2A40] h-1/4 overflow-y-auto bg-[#1A2A40]/5">
            <div className="text-[10px] text-gray-500 font-black mb-3 tracking-widest uppercase italic">>> STRATEGIC_ADVISORY</div>
-           {gameState.lastGeminiResponse ? (
-             <div className="space-y-4 font-mono animate-monitor-on">
-                <div className="p-3 bg-[#3DDCFF]/5 border border-[#3DDCFF]/20 rounded relative overflow-hidden"><div className="card-scanline opacity-10"></div><div className="text-[#3DDCFF] text-[11px] font-black uppercase mb-1 flex items-center"><span className="w-1.5 h-1.5 bg-[#3DDCFF] rounded-full mr-2 shadow-[0_0_5px_#3DDCFF]"></span>Performance_Gap</div><div className="text-white text-[11px] font-bold leading-tight uppercase tracking-tighter">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</div><div className="mt-2 text-gray-500 italic text-[10px] leading-relaxed">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div></div>
-             </div>
-           ) : (<div className="text-[11px] text-gray-700 animate-pulse italic">WAITING_FOR_WAVE_DATA...</div>)}
+           <div className="space-y-4 font-mono animate-monitor-on" key={gameState.lastDiagnostic?.weakest_sector || gameState.lastGeminiResponse?.kernel_log_message}>
+              {gameState.lastDiagnostic ? (
+                <div className="p-3 bg-yellow-500/5 border border-yellow-500/30 rounded relative overflow-hidden">
+                  <div className="card-scanline opacity-20"></div>
+                  <div className="text-yellow-500 text-[11px] font-black uppercase mb-1 flex items-center">
+                    <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full mr-2 shadow-[0_0_5px_#EAB308]"></span>
+                    Visual_Scan_Result
+                  </div>
+                  <div className="text-white text-[11px] font-bold leading-tight uppercase tracking-tighter mb-1">
+                    Sector_Leak: {gameState.lastDiagnostic.weakest_sector}
+                  </div>
+                  <div className="text-gray-400 italic text-[10px] leading-relaxed">
+                    "{gameState.lastDiagnostic.analysis}"
+                  </div>
+                  <div className="mt-2 text-[9px] text-yellow-500/70 border-t border-yellow-500/10 pt-1 font-black">
+                    REC_PATCH: {MASTER_CARD_POOL[gameState.lastDiagnostic.suggested_card_id]?.name || 'PROTOCOL_DELTA'}
+                  </div>
+                </div>
+              ) : null}
+
+              {gameState.lastGeminiResponse ? (
+                <div className="p-3 bg-[#3DDCFF]/5 border border-[#3DDCFF]/20 rounded relative overflow-hidden">
+                  <div className="card-scanline opacity-10"></div>
+                  <div className="text-[#3DDCFF] text-[11px] font-black uppercase mb-1 flex items-center">
+                    <span className="w-1.5 h-1.5 bg-[#3DDCFF] rounded-full mr-2 shadow-[0_0_5px_#3DDCFF]"></span>
+                    Aegis_Analysis
+                  </div>
+                  <div className="text-white text-[11px] font-bold leading-tight uppercase tracking-tighter">
+                    {gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}
+                  </div>
+                  <div className="mt-2 text-gray-500 italic text-[10px] leading-relaxed">
+                    "{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"
+                  </div>
+                </div>
+              ) : (!gameState.lastDiagnostic && <div className="text-[11px] text-gray-700 animate-pulse italic">WAITING_FOR_WAVE_DATA...</div>)}
+           </div>
         </section>
         <section className={`flex-1 overflow-hidden flex flex-col transition-all duration-500 ${gameState.isProcessing ? 'pulse-breach' : ''}`}>
           <div className="p-3 border-b border-[#1A2A40] flex justify-between items-center text-[11px]"><span className="text-gray-500 uppercase font-black tracking-widest">Active_Payloads</span>{selectedIndices.length > 0 && <span className="text-[#3DDCFF] font-black">[{selectedIndices.length}] READY</span>}</div>
@@ -1427,7 +1470,7 @@ const App: React.FC = () => {
           </div>
         </section>
         <footer className="p-4 bg-[#1A2A40]/10 border-t border-[#1A2A40] space-y-3">
-          <button disabled={!canFuse || gameState.isVictory || !gameState.sessionActive} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse" : "border-gray-800 text-gray-800 opacity-50"}`}>FUSE_SIGNATURES</button>
+          <button disabled={!canFuse || gameState.isVictory || !gameState.sessionActive} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse" : "border-gray-800 text-gray-600"}`}>UPGRADE_PAYLOAD</button>
         </footer>
       </aside>
 
@@ -1438,8 +1481,14 @@ const App: React.FC = () => {
       )}
 
       {isAboutOpen && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-[60] flex items-center justify-center p-12">
-          <div className="max-w-md w-full p-8 border-2 border-[#9CFF57] holographic-panel shadow-[0_0_100px_rgba(156,255,87,0.2)] relative overflow-hidden animate-monitor-on">
+        <div 
+          className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-[100] flex items-center justify-center p-12 cursor-pointer"
+          onClick={() => setIsAboutOpen(false)}
+        >
+          <div 
+            className="max-w-md w-full p-8 border-2 border-[#9CFF57] holographic-panel shadow-[0_0_100px_rgba(156,255,87,0.2)] relative overflow-hidden animate-monitor-on cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="absolute top-0 left-0 w-full h-1 bg-[#9CFF57] animate-pulse"></div>
             <div className="text-[#9CFF57] font-black tracking-[0.4em] uppercase text-[11px] mb-6 flex items-center">
               <span className="flex-1 h-px bg-[#9CFF57]/30"></span>
