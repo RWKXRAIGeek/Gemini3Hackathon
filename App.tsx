@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Card, GameState, Point, CardType, SessionSummary } from './types';
+import { Card, GameState, Point, CardType, SessionSummary, VisualDiagnosticResponse } from './types';
 import { GRID_SIZE, TILE_SIZE, INITIAL_DECK, MAX_ENERGY, MASTER_CARD_POOL, INITIAL_HP, MAX_WAVES } from './constants';
 import { getAegisReasoning, getVisualDiagnostic, getRedemptionCard, speak } from './services/gemini';
 import { SecurityNode, MalwarePacket, FirewallBuffer } from './utils/gameClasses';
@@ -403,17 +403,29 @@ const App: React.FC = () => {
     setGameState(prev => ({ ...prev, history: newHistory }));
   }, [gameState.waveNumber, gameState.history]);
 
-  const runVisualDiagnostic = async () => {
-    if (!canvasRef.current || gameState.isScanning) return;
+  /**
+   * Refactored to be strictly awaitable for sequential UI phases.
+   */
+  const runVisualDiagnostic = async (): Promise<VisualDiagnosticResponse | null> => {
+    if (!canvasRef.current || gameState.isScanning) return null;
+    
+    // Begin Scan Animation
     setGameState(prev => ({ ...prev, isScanning: true }));
     addLog('[VISUAL_SCAN] CAPTURING GRID TELEMETRY...');
+    
+    // Small delay to ensure the scanline animation is visible before the API call
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
     const diagnostic = await getVisualDiagnostic(imageData);
+    
     if (diagnostic) {
       addLog(`[SCAN_RESULT] SECTOR ${diagnostic.weakest_sector} IDENTIFIED AS WEAK.`);
       setGameState(prev => ({ ...prev, isScanning: false, lastDiagnostic: diagnostic }));
+      return diagnostic;
     } else {
       setGameState(prev => ({ ...prev, isScanning: false }));
+      return null;
     }
   };
 
@@ -441,20 +453,35 @@ const App: React.FC = () => {
     }
   }, [gameState.waveNumber, addLog]);
 
+  /**
+   * Refactored inter-wave sequence:
+   * 1. Phase 1 (Observation): Close summary and await visual scan.
+   * 2. Phase 2 (Processing): Show Thinking splash.
+   * 3. Phase 3 (Synthesis): Perform getAegisReasoning.
+   * 4. Phase 4 (Commitment): Apply state updates and hide thinking.
+   */
   const proceedToNextCycle = async () => {
     if (gameState.isVictory || !gameState.sessionActive) return;
     
-    setGameState(prev => ({ ...prev, isWaveSummaryOpen: false, isProcessing: true }));
+    // --- Phase 1: Observation ---
+    setGameState(prev => ({ ...prev, isWaveSummaryOpen: false }));
+    // Wait for modal transition before scanning
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await runVisualDiagnostic();
+
+    // --- Phase 2: Processing ---
+    setGameState(prev => ({ ...prev, isProcessing: true }));
     addLog('[SYS] BREACH EVENT CONCLUDED. ANALYZING DATA...');
 
-    const nodeTypes = gameRef.current.nodes.map(n => n.type);
-    
+    // Preliminary hand cleanup
     setGameState(prev => ({
         ...prev,
         discard: [...prev.discard, ...prev.hand],
         hand: []
     }));
 
+    // --- Phase 3: Synthesis ---
+    const nodeTypes = gameRef.current.nodes.map(n => n.type);
     const aegis = await getAegisReasoning(
       gameState, 
       gameRef.current.nodes.length, 
@@ -462,6 +489,7 @@ const App: React.FC = () => {
       nodeTypes
     );
 
+    // --- Phase 4: Commitment ---
     if (aegis) {
       addLog(`[AEGIS] ${aegis.kernel_log_message}`);
       const newHand = aegis.exploit_kit_update.suggested_cards_ids.map(id => MASTER_CARD_POOL[id] || MASTER_CARD_POOL['protocol_sentry']);
@@ -470,7 +498,7 @@ const App: React.FC = () => {
         ...prev,
         waveNumber: prev.waveNumber + 1,
         energyPoints: Math.min(MAX_ENERGY, prev.energyPoints + 15),
-        isProcessing: false,
+        isProcessing: false, // End Thinking Splash
         lastGeminiResponse: aegis,
         advisoryCount: prev.advisoryCount + 1
       }));
@@ -478,7 +506,6 @@ const App: React.FC = () => {
       gameRef.current.currentEnergy = Math.min(MAX_ENERGY, gameRef.current.currentEnergy + 15);
       gameRef.current.difficultyMultiplier = aegis.wave_parameters.wave_difficulty;
       drawHand(newHand);
-      runVisualDiagnostic();
 
       speak(aegis.kernel_log_message);
     } else {
@@ -1032,7 +1059,6 @@ const App: React.FC = () => {
     return "[COMPILE_UPGRADE]";
   }, [selectedIndices, gameState.hand]);
 
-  // Priority sorted vulnerability index
   const sortedVulnerabilities = useMemo(() => {
     return [...mockSystemVulnerabilities].sort((a, b) => {
       return vulnerabilityPriority[a.risk] - vulnerabilityPriority[b.risk];
