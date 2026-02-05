@@ -830,7 +830,25 @@ const App: React.FC = () => {
         if (gameRef.current.enemiesToSpawn > 0) {
           gameRef.current.spawnTimer += dt;
           if (gameRef.current.spawnTimer >= 0.8) {
-            const malwareType = gameState.lastGeminiResponse?.wave_parameters?.malware_type || 'STANDARD';
+            // HETEROGENEOUS WAVE LOGIC
+            let malwareType = 'STANDARD';
+            const aiSuggested = gameState.lastGeminiResponse?.wave_parameters?.malware_type || 'STANDARD';
+            const entropy = Math.random();
+
+            if (gameState.waveNumber === 0) {
+              // Wave 1: Fixed Diversity Mix (70% Standard, 30% Swarm)
+              malwareType = entropy < 0.7 ? 'STANDARD' : 'SWARM_PACKET';
+            } else {
+              // Wave 2+: Adaptive Diversity (60% Dominant AI Type, 40% Mutant from Pool)
+              if (entropy < 0.6) {
+                malwareType = aiSuggested;
+              } else {
+                const pool = ['STANDARD', 'SWARM_PACKET', 'ARMORED_ELITE', 'STEALTH_WORM'];
+                // Select a mutant type from the pool
+                malwareType = pool[Math.floor(Math.random() * pool.length)];
+              }
+            }
+
             const enemy = new MalwarePacket(
               gameRef.current.path, 
               { hp: 40 * gameRef.current.difficultyMultiplier, speed: 2.0 }, 

@@ -16,6 +16,7 @@ export class MalwarePacket {
   type: string;
   slowFactor: number = 1;
   angle: number = 0;
+  private trail: { x: number, y: number, life: number }[] = [];
 
   constructor(path: Point[], stats: { hp: number, speed: number }, type: string = 'STANDARD') {
     this.path = path;
@@ -66,10 +67,20 @@ export class MalwarePacket {
     const dy = ty - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     
-    // Track movement direction for visual rotation
     if (dist > 0.1) {
       this.angle = Math.atan2(dy, dx);
     }
+
+    // Update Trail (Data Leaks)
+    if (Math.random() > 0.7) {
+        this.trail.push({ 
+            x: this.x + (Math.random() - 0.5) * 10, 
+            y: this.y + (Math.random() - 0.5) * 10, 
+            life: 1.0 
+        });
+    }
+    this.trail.forEach(t => t.life -= deltaTime * 3);
+    this.trail = this.trail.filter(t => t.life > 0);
 
     if (dist < currentSpeed) {
       this.x = tx;
@@ -86,56 +97,153 @@ export class MalwarePacket {
     ctx.save();
     
     const isSlowed = this.slowFactor < 1;
-    const primaryColor = isSlowed ? '#3DDCFF' : '#FF3B3B';
+    const primaryColor = isSlowed ? '#3DDCFF' : (this.type === 'STEALTH_WORM' ? '#E0FFFF' : '#FF3B3B');
+    const secondaryColor = this.type === 'ARMORED_ELITE' ? '#FFA500' : primaryColor;
+    
+    // Draw Data Leak Trail
+    ctx.fillStyle = primaryColor;
+    this.trail.forEach(t => {
+        ctx.globalAlpha = t.life * 0.5;
+        ctx.fillRect(t.x - 1, t.y - 1, 2, 2);
+    });
+    ctx.globalAlpha = 1.0;
+
     ctx.fillStyle = primaryColor;
     ctx.strokeStyle = primaryColor;
     ctx.lineWidth = 2;
 
+    const time = Date.now();
+
     switch (this.type) {
-      case 'SWARM_PACKET':
-        // Equilateral triangle rotating with movement direction
+      case 'SWARM_PACKET': {
+        // SWARM_PACKET (The Mite): Arachnid shape with jittering legs
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
+        
+        // Body
         ctx.beginPath();
-        ctx.moveTo(this.radius, 0);
-        ctx.lineTo(-this.radius * 0.5, -this.radius * 0.866);
-        ctx.lineTo(-this.radius * 0.5, this.radius * 0.866);
-        ctx.closePath();
+        ctx.ellipse(0, 0, this.radius, this.radius * 0.7, 0, 0, Math.PI * 2);
         ctx.fill();
-        break;
 
-      case 'ARMORED_ELITE':
-        // Larger square with double-stroke border
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle); // Optional rotation for box
-        ctx.fillRect(-this.radius, -this.radius, this.radius * 2, this.radius * 2);
-        ctx.strokeRect(-this.radius - 3, -this.radius - 3, this.radius * 2 + 6, this.radius * 2 + 6);
-        ctx.strokeRect(-this.radius - 6, -this.radius - 6, this.radius * 2 + 12, this.radius * 2 + 12);
-        break;
-
-      case 'STEALTH_WORM':
-        // Semi-transparent hexagon with fluctuating alpha
-        const alpha = 0.1 + (Math.sin(Date.now() / 200) + 1) * 0.25; // 0.1 to 0.6
-        ctx.globalAlpha = alpha;
+        // Legs (Jittering)
+        const jitter = Math.sin(time / 20) * 2;
         ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-          const px = this.x + this.radius * Math.cos(i * Math.PI / 3);
-          const py = this.y + this.radius * Math.sin(i * Math.PI / 3);
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
+        for (let i = 0; i < 4; i++) {
+          const legAngle = (Math.PI / 4) + (i * Math.PI / 4);
+          const lx = Math.cos(legAngle) * this.radius;
+          const ly = Math.sin(legAngle) * this.radius;
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(lx * 1.8, ly + jitter);
         }
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalAlpha = alpha + 0.2;
+        ctx.stroke();
+
+        // Spiked Tail
+        ctx.beginPath();
+        ctx.moveTo(-this.radius, 0);
+        ctx.lineTo(-this.radius * 2, 0);
         ctx.stroke();
         break;
+      }
 
-      default:
-        // STANDARD: Circle
+      case 'ARMORED_ELITE': {
+        // ARMORED_ELITE (The Beetle): Segmented carapace with mandibles
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // Core Pulse
+        const pulse = 0.5 + (Math.sin(time / 150) + 1) * 0.25;
+        ctx.shadowBlur = 10 * pulse;
+        ctx.shadowColor = secondaryColor;
+
+        // Carapace segments
+        ctx.fillStyle = '#660000';
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.roundRect(-this.radius, -this.radius * 0.8, this.radius * 0.6, this.radius * 1.6, 2);
+        ctx.roundRect(-this.radius * 0.3, -this.radius, this.radius * 0.8, this.radius * 2, 2);
+        ctx.roundRect(this.radius * 0.6, -this.radius * 0.8, this.radius * 0.4, this.radius * 1.6, 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Mandibles
+        ctx.beginPath();
+        ctx.moveTo(this.radius, -this.radius * 0.4);
+        ctx.lineTo(this.radius * 1.8, -this.radius * 0.8);
+        ctx.moveTo(this.radius, this.radius * 0.4);
+        ctx.lineTo(this.radius * 1.8, this.radius * 0.8);
+        ctx.strokeStyle = secondaryColor;
+        ctx.stroke();
+
+        // Center Core
+        ctx.fillStyle = secondaryColor;
+        ctx.globalAlpha = pulse;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius * 0.4, 0, Math.PI * 2);
         ctx.fill();
         break;
+      }
+
+      case 'STEALTH_WORM': {
+        // STEALTH_WORM (The Centipede): Segmented body with flickering antennae
+        const alpha = 0.2 + (Math.sin(time / 200) + 1) * 0.3;
+        ctx.globalAlpha = alpha;
+        
+        // Head
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Segments
+        for (let i = 1; i <= 3; i++) {
+          const offset = i * this.radius * 1.2;
+          const sx = this.x - Math.cos(this.angle) * offset;
+          const sy = this.y - Math.sin(this.angle) * offset;
+          ctx.beginPath();
+          ctx.arc(sx, sy, this.radius * (0.8 - i * 0.15), 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Antennae (Flickering)
+        if (Math.random() > 0.3) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            ctx.beginPath();
+            ctx.moveTo(this.radius * 0.5, -this.radius * 0.4);
+            ctx.lineTo(this.radius * 1.5, -this.radius * 0.8);
+            ctx.moveTo(this.radius * 0.5, this.radius * 0.4);
+            ctx.lineTo(this.radius * 1.5, this.radius * 0.8);
+            ctx.stroke();
+            ctx.restore();
+        }
+        break;
+      }
+
+      default: {
+        // STANDARD (The Virus): Glitch-orb
+        ctx.translate(this.x, this.y);
+        
+        // Base Circle
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Glitch Scanlines (Noise)
+        if (Math.random() > 0.5) {
+            const gy = (Math.random() - 0.5) * this.radius * 2;
+            const gw = this.radius * (1 + Math.random());
+            ctx.clearRect(-gw/2, gy, gw, 1);
+            ctx.fillRect(-gw/2 + 2, gy, gw, 1);
+        }
+        
+        // Geometric edges
+        ctx.beginPath();
+        ctx.moveTo(this.radius, 0);
+        ctx.lineTo(this.radius * 1.2, this.radius * 0.2);
+        ctx.moveTo(-this.radius, -this.radius * 0.3);
+        ctx.lineTo(-this.radius * 1.3, -this.radius * 0.1);
+        ctx.stroke();
+        break;
+      }
     }
 
     ctx.restore();
@@ -143,9 +251,9 @@ export class MalwarePacket {
     // HP Bar
     const barWidth = this.radius * 2.4;
     ctx.fillStyle = '#1A0000';
-    ctx.fillRect(this.x - barWidth/2, this.y - this.radius - 8, barWidth, 4);
+    ctx.fillRect(this.x - barWidth/2, this.y - this.radius - 12, barWidth, 4);
     ctx.fillStyle = primaryColor;
-    ctx.fillRect(this.x - barWidth/2, this.y - this.radius - 8, (Math.max(0, this.hp) / this.maxHp) * barWidth, 4);
+    ctx.fillRect(this.x - barWidth/2, this.y - this.radius - 12, (Math.max(0, this.hp) / this.maxHp) * barWidth, 4);
   }
 }
 
