@@ -19,6 +19,42 @@ const vulnerabilityPriority: Record<string, number> = {
   'LOW': 2
 };
 
+const generateMainframePath = (gridSize: number): Point[] => {
+  const path: Point[] = [];
+  let curX = 0;
+  // Start at a random Y on the left edge
+  let curY = Math.floor(Math.random() * (gridSize - 4)) + 2; 
+  
+  path.push({ x: curX, y: curY });
+  
+  while (curX < gridSize - 1) {
+    // 1. Move Right: 1 to 3 steps
+    const dX = Math.floor(Math.random() * 2) + 1;
+    curX = Math.min(gridSize - 1, curX + dX);
+    path.push({ x: curX, y: curY });
+    
+    if (curX >= gridSize - 1) break;
+    
+    // 2. Move Vertical: 2 to 4 steps, ensuring we stay in bounds
+    const moveUp = curY > gridSize / 2 ? Math.random() > 0.3 : Math.random() > 0.7;
+    const dY = Math.floor(Math.random() * 3) + 2;
+    
+    if (moveUp) {
+      curY = Math.max(1, curY - dY);
+    } else {
+      curY = Math.min(gridSize - 2, curY + dY);
+    }
+    path.push({ x: curX, y: curY });
+  }
+  
+  // Terminal connection to the right edge if not already there
+  if (path[path.length - 1].x !== gridSize - 1) {
+    path.push({ x: gridSize - 1, y: curY });
+  }
+  
+  return path;
+};
+
 interface DeployParticle {
   x: number;
   y: number;
@@ -59,16 +95,7 @@ const App: React.FC = () => {
     lastFrameTime: performance.now(),
     currentHP: INITIAL_HP,
     currentEnergy: 20,
-    path: [
-      { x: 0, y: 5 },
-      { x: 2, y: 5 },
-      { x: 2, y: 2 },
-      { x: 5, y: 2 },
-      { x: 5, y: 7 },
-      { x: 8, y: 7 },
-      { x: 8, y: 5 },
-      { x: 9, y: 5 }
-    ] as Point[]
+    path: generateMainframePath(GRID_SIZE)
   });
 
   const prevHpRef = useRef(INITIAL_HP);
@@ -313,6 +340,7 @@ const App: React.FC = () => {
       gameRef.current.lastFrameTime = performance.now();
       gameRef.current.currentHP = INITIAL_HP;
       gameRef.current.currentEnergy = 20;
+      gameRef.current.path = generateMainframePath(GRID_SIZE); // Re-randomize path on reboot
       prevHpRef.current = INITIAL_HP;
 
       bakeBackground();
@@ -363,6 +391,7 @@ const App: React.FC = () => {
   }, [gameState.isGameStarted, drawHand, gameState.isProcessing, gameState.sessionActive]);
 
   const startGame = () => {
+    gameRef.current.path = generateMainframePath(GRID_SIZE); // Randomize path for first start
     bakeBackground();
     gameRef.current.currentHP = INITIAL_HP;
     gameRef.current.currentEnergy = 20;
