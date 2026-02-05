@@ -51,6 +51,8 @@ const App: React.FC = () => {
     spawnTimer: 0,
     difficultyMultiplier: 1.0,
     lastFrameTime: performance.now(),
+    currentHP: INITIAL_HP,
+    currentEnergy: 20,
     path: [
       { x: 0, y: 5 },
       { x: 2, y: 5 },
@@ -305,6 +307,8 @@ const App: React.FC = () => {
       gameRef.current.spawnTimer = 0;
       gameRef.current.difficultyMultiplier = 1.0;
       gameRef.current.lastFrameTime = performance.now();
+      gameRef.current.currentHP = INITIAL_HP;
+      gameRef.current.currentEnergy = 20;
       prevHpRef.current = INITIAL_HP;
 
       bakeBackground();
@@ -356,6 +360,8 @@ const App: React.FC = () => {
 
   const startGame = () => {
     bakeBackground();
+    gameRef.current.currentHP = INITIAL_HP;
+    gameRef.current.currentEnergy = 20;
     setGameState(prev => ({ ...prev, isGameStarted: true, sessionActive: true }));
     speak("Aegis OS Kernel initialized. Core active. Systems ready for breach audit.");
   };
@@ -465,6 +471,8 @@ const App: React.FC = () => {
         advisoryCount: prev.advisoryCount + 1
       }));
       
+      // Update local gameRef values to match React state sync
+      gameRef.current.currentEnergy = Math.min(MAX_ENERGY, gameRef.current.currentEnergy + 15);
       gameRef.current.difficultyMultiplier = aegis.wave_parameters.wave_difficulty;
       drawHand(newHand);
       runVisualDiagnostic();
@@ -478,6 +486,7 @@ const App: React.FC = () => {
 
   const abortAuditAndTerminate = () => {
     if (gameState.isVictory || !gameState.sessionActive) return;
+    gameRef.current.currentHP = 0;
     setGameState(prev => ({ 
       ...prev, 
       kernelHP: 0,
@@ -503,6 +512,7 @@ const App: React.FC = () => {
     setGameState(prev => {
         const card = prev.hand[idx];
         const newHand = prev.hand.filter((_, i) => i !== idx);
+        gameRef.current.currentEnergy -= 2;
         return {
             ...prev,
             energyPoints: prev.energyPoints - 2,
@@ -543,6 +553,7 @@ const App: React.FC = () => {
         spawnFloatingText(node.x, node.y, `+${ramRefund} RAM`);
         triggerRamFlash();
 
+        gameRef.current.currentEnergy = Math.min(MAX_ENERGY, gameRef.current.currentEnergy + ramRefund);
         return {
           ...prev,
           hand: [...prev.hand, card],
@@ -554,6 +565,7 @@ const App: React.FC = () => {
         spawnFloatingText(node.x, node.y, `+${ramRefund} RAM`);
         triggerRamFlash();
 
+        gameRef.current.currentEnergy = Math.min(MAX_ENERGY, gameRef.current.currentEnergy + ramRefund);
         return {
           ...prev,
           energyPoints: Math.min(MAX_ENERGY, prev.energyPoints + ramRefund)
@@ -624,6 +636,7 @@ const App: React.FC = () => {
       setRerouteBeam({ from: oldPos, to: targetCoord, opacity: 1 });
       setTimeout(() => setRerouteBeam(null), 500);
 
+      gameRef.current.currentEnergy -= cost;
       setGameState(prev => ({
         ...prev,
         energyPoints: prev.energyPoints - cost
@@ -655,6 +668,7 @@ const App: React.FC = () => {
 
         spawnDeployParticles(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2);
 
+        gameRef.current.currentEnergy -= card.cost;
         setGameState(prev => ({
           ...prev,
           energyPoints: prev.energyPoints - card.cost,
@@ -690,6 +704,24 @@ const App: React.FC = () => {
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
     let requestRef: number;
+    
+    // Throttled UI sync: Sync refs to state at a stable frequency
+    const syncUI = () => {
+      setGameState(prev => {
+        const hpChanged = prev.kernelHP !== gameRef.current.currentHP;
+        const energyChanged = prev.energyPoints !== gameRef.current.currentEnergy;
+        if (hpChanged || energyChanged) {
+          return {
+            ...prev,
+            kernelHP: gameRef.current.currentHP,
+            energyPoints: gameRef.current.currentEnergy
+          };
+        }
+        return prev;
+      });
+    };
+    
+    // We can run UI sync inside loop but with a check for actual changes
     const loop = (time: number) => {
       const dt = (time - gameRef.current.lastFrameTime) / 1000;
       gameRef.current.lastFrameTime = time;
@@ -785,19 +817,17 @@ const App: React.FC = () => {
         for (let i = gameRef.current.enemies.length - 1; i >= 0; i--) {
           const e = gameRef.current.enemies[i];
           if (e.update(dt)) {
-            setGameState(prev => {
-              const newHP = Math.max(0, prev.kernelHP - 12);
-              if (newHP <= 0 && prev.kernelHP > 0) {
-                setTimeout(() => saveSession(), 100);
-                speak("Critical Exception. Kernel core integrity zeroed. System failure imminent.");
-              }
-              return { ...prev, kernelHP: newHP };
-            });
+            const oldHP = gameRef.current.currentHP;
+            gameRef.current.currentHP = Math.max(0, gameRef.current.currentHP - 12);
+            if (gameRef.current.currentHP <= 0 && oldHP > 0) {
+              setTimeout(() => saveSession(), 100);
+              speak("Critical Exception. Kernel core integrity zeroed. System failure imminent.");
+            }
             gameRef.current.enemies.splice(i, 1);
           } else if (e.hp <= 0) {
             gameRef.current.enemies.splice(i, 1);
             gameRef.current.defeatedCount++;
-            setGameState(prev => ({ ...prev, energyPoints: Math.min(MAX_ENERGY, prev.energyPoints + 2) }));
+            gameRef.current.currentEnergy = Math.min(MAX_ENERGY, gameRef.current.currentEnergy + 2);
           }
         }
         
@@ -900,6 +930,8 @@ const App: React.FC = () => {
         ctx.beginPath(); ctx.moveTo(0, scanY); ctx.lineTo(600, scanY); ctx.stroke();
         ctx.setLineDash([]);
       }
+      
+      syncUI();
       requestRef = requestAnimationFrame(loop);
     };
     requestRef = requestAnimationFrame(loop);

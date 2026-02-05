@@ -6,6 +6,21 @@ import { AegisResponse, GameState, VisualDiagnosticResponse, SessionSummary, Car
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
+ * Singleton AudioContext to prevent hardware exhaustion
+ */
+let sharedAudioContext: AudioContext | null = null;
+
+const getAudioContext = () => {
+  if (!sharedAudioContext) {
+    sharedAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+  }
+  if (sharedAudioContext.state === 'suspended') {
+    sharedAudioContext.resume();
+  }
+  return sharedAudioContext;
+};
+
+/**
  * Custom base64 decoder for environments without standard atob or for raw bytes
  */
 function decodeBase64(base64: string): Uint8Array {
@@ -61,7 +76,7 @@ export const speak = async (text: string): Promise<void> => {
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const audioContext = getAudioContext();
       const audioBytes = decodeBase64(base64Audio);
       const audioBuffer = await decodeAudioData(audioBytes, audioContext, 24000, 1);
       
@@ -160,7 +175,12 @@ export const getAegisReasoning = async (
       },
     });
 
-    const rawJson = JSON.parse(response.text || '{}');
+    let rawJson: any = {};
+    try {
+      rawJson = JSON.parse(response.text || '{}');
+    } catch (e) {
+      console.warn("Aegis JSON Parse Failed, using fallbacks.");
+    }
     
     // Defensive Validation Layer: Merge with safe defaults
     const validated: AegisResponse = {
@@ -232,7 +252,12 @@ export const getVisualDiagnostic = async (
       },
     });
     
-    const rawJson = JSON.parse(response.text || '{}');
+    let rawJson: any = {};
+    try {
+      rawJson = JSON.parse(response.text || '{}');
+    } catch (e) {
+      console.warn("Visual JSON Parse Failed.");
+    }
     
     // Defensive Validation for Visual Diagnostic
     return {
@@ -298,7 +323,13 @@ export const getRedemptionCard = async (
       }
     });
 
-    const rawJson = JSON.parse(response.text || '{}');
+    let rawJson: any = {};
+    try {
+      rawJson = JSON.parse(response.text || '{}');
+    } catch (e) {
+      console.warn("Redemption JSON Parse Failed.");
+      return null;
+    }
     
     // Basic structural validation for the redemption card
     if (!rawJson.name || !rawJson.id) return null;
