@@ -235,7 +235,8 @@ const App: React.FC = () => {
     setReroutingNodeIndex(null);
     setSelectedIndices(prev => {
       if (prev.includes(idx)) return prev.filter(i => i !== idx);
-      return [idx];
+      if (prev.length < 2) return [...prev, idx];
+      return [idx]; // Replace first if already 2 selected? Or just ignore? Let's just allow switching.
     });
   }, []);
 
@@ -938,9 +939,12 @@ const App: React.FC = () => {
     return () => cancelAnimationFrame(requestRef);
   }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, gameState.sessionActive, isTileOnPath, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam, bakeBackground, gameState.lastGeminiResponse]);
 
-  const canFuse = selectedIndices.length === 2 && 
-                  gameState.hand[selectedIndices[0]]?.id === gameState.hand[selectedIndices[1]]?.id &&
-                  gameState.hand[selectedIndices[0]]?.fusionTargetId;
+  const canFuse = useMemo(() => {
+    if (selectedIndices.length !== 2) return false;
+    const card1 = gameState.hand[selectedIndices[0]];
+    const card2 = gameState.hand[selectedIndices[1]];
+    return card1?.id === card2?.id && !!card1?.fusionTargetId;
+  }, [selectedIndices, gameState.hand]);
 
   const fuseCards = useCallback(() => {
     if (!canFuse || !gameState.sessionActive) return;
@@ -954,6 +958,7 @@ const App: React.FC = () => {
       addLog(`[SYS] FUSING DATA SIGNATURES: ${card1.name} x2 -> ${fusedCard.name}`);
       setGameState(prev => {
         const newHand = [...prev.hand];
+        // Sort indices descending to splice correctly
         const toRemove = [i1, i2].sort((a, b) => b - a);
         newHand.splice(toRemove[0], 1);
         newHand.splice(toRemove[1], 1);
@@ -1017,6 +1022,17 @@ const App: React.FC = () => {
       .filter(log => log.includes('[AEGIS]') || log.includes('[SYS]'))
       .slice(0, 3);
   }, [gameState.statusLog]);
+
+  // Dynamic upgrade button text
+  const upgradeBtnText = useMemo(() => {
+    if (selectedIndices.length === 0) return "[SELECT_PAYLOAD]";
+    if (selectedIndices.length === 1) return "[SELECT_MATCHING_PAIR]";
+    const card1 = gameState.hand[selectedIndices[0]];
+    const card2 = gameState.hand[selectedIndices[1]];
+    if (card1?.id !== card2?.id) return "[SIGNATURE_MISMATCH]";
+    if (!card1?.fusionTargetId) return "[MAX_UPGRADE_REACHED]";
+    return "[COMPILE_UPGRADE]";
+  }, [selectedIndices, gameState.hand]);
 
   return (
     <div 
@@ -1466,7 +1482,8 @@ const App: React.FC = () => {
           <div className="p-3 border-b border-[#1A2A40] flex justify-between items-center text-[11px]"><span className="text-gray-500 uppercase font-black tracking-widest">Active_Payloads</span>{selectedIndices.length > 0 && <span className="text-[#3DDCFF] font-black">[{selectedIndices.length}] READY</span>}</div>
           <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-thin scrollbar-thumb-[#1A2A40]">
             {gameState.hand.map((card, i) => {
-              const isSelected = selectedIndices.includes(i);
+              const selectionPos = selectedIndices.indexOf(i);
+              const isSelected = selectionPos !== -1;
               const canAfford = gameState.energyPoints >= card.cost;
               const protocolId = `PRT-${card.id.substring(0, 3).toUpperCase()}-0x${i}`;
               
@@ -1482,7 +1499,13 @@ const App: React.FC = () => {
                   className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${rarityClasses} ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${(!canAfford || gameState.isVictory || !gameState.sessionActive) ? 'opacity-40 grayscale pointer-events-none' : ''}`}
                 >
                   <div className={`card-scanline ${scanlineOpacity}`}></div>
-                  <div className="flex justify-between items-start mb-2 relative z-10">
+                  
+                  {/* Selection Checkbox/Slot Indicator */}
+                  <div className={`absolute top-2 right-2 w-5 h-5 border-2 flex items-center justify-center font-black text-[9px] transition-all duration-300 ${isSelected ? "border-[#3DDCFF] bg-[#3DDCFF] text-black" : "border-[#1A2A40] bg-black/40 text-transparent"}`}>
+                    {isSelected ? `0${selectionPos + 1}` : ""}
+                  </div>
+
+                  <div className="flex justify-between items-start mb-2 relative z-10 pr-8">
                     <span className="text-[10px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId} [{i+1}]</span>
                     <div className="flex items-center"><span className={`text-[13px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span><span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span></div>
                   </div>
@@ -1495,14 +1518,20 @@ const App: React.FC = () => {
                       <p className="text-[9px] text-[#9CFF57]/50 font-bold mt-1 leading-tight uppercase truncate">{card.reasoningTip}</p>
                     </div>
                   </div>
-                  {isSelected && (<div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[#3DDCFF] rounded-full shadow-[0_0_8px_#3DDCFF] animate-ping"/>)}
+                  {isSelected && (<div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[#3DDCFF] rounded-full shadow-[0_0_8px_#3DDCFF] animate-ping opacity-0"/>)}
                 </div>
               );
             })}
           </div>
         </section>
         <footer className="p-4 bg-[#1A2A40]/10 border-t border-[#1A2A40] space-y-3">
-          <button disabled={!canFuse || gameState.isVictory || !gameState.sessionActive} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse" : "border-gray-800 text-gray-600"}`}>UPGRADE_PAYLOAD</button>
+          <button 
+            disabled={!canFuse || gameState.isVictory || !gameState.sessionActive} 
+            onClick={fuseCards} 
+            className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse" : "border-gray-800 text-gray-600"}`}
+          >
+            {upgradeBtnText}
+          </button>
         </footer>
       </aside>
 
