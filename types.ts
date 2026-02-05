@@ -72,6 +72,7 @@ export interface GameState {
   isProcessing: boolean;
   isScanning: boolean;
   isGameStarted: boolean;
+  sessionActive: boolean; // Tracking if a game session is currently in progress
   isTacticalOverlayOpen: boolean;
   isWaveSummaryOpen: boolean; // Tracking inter-wave UI
   isVictory: boolean; // Victory tracking

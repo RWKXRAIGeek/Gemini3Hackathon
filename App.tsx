@@ -75,10 +75,15 @@ const App: React.FC = () => {
     isProcessing: false,
     isScanning: false,
     isGameStarted: false,
+    sessionActive: false,
     isTacticalOverlayOpen: false,
     isWaveSummaryOpen: false,
     isVictory: false,
-    statusLog: ['[SYS_INIT] AEGIS OS BOOTING...', '[SYS_INIT] KERNEL CORE ACTIVE.'],
+    statusLog: [
+      '[SYS_INIT] AEGIS OS BOOTING...', 
+      '[SYS_INIT] KERNEL CORE ACTIVE.',
+      '[SYS] HOTKEY_INTERFACE_ENABLED'
+    ],
     history: JSON.parse(localStorage.getItem('aegis_history') || '[]'),
     totalCardsDeployed: 0,
     advisoryCount: 0,
@@ -95,6 +100,7 @@ const App: React.FC = () => {
   const [rerouteBeam, setRerouteBeam] = useState<{from: Point, to: Point, opacity: number} | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
+  const [isShuttingDown, setIsShuttingDown] = useState(false);
   
   const [breachImpact, setBreachImpact] = useState(false);
 
@@ -144,10 +150,11 @@ const App: React.FC = () => {
     }
     prevHpRef.current = gameState.kernelHP;
 
-    if (gameState.kernelHP <= 0 && gameState.isGameStarted && !auditReport) {
+    if (gameState.kernelHP <= 0 && gameState.sessionActive && !auditReport) {
+      setGameState(prev => ({ ...prev, sessionActive: false }));
       generateAuditReport();
     }
-  }, [gameState.kernelHP, gameState.isGameStarted, auditReport, generateAuditReport]);
+  }, [gameState.kernelHP, gameState.sessionActive, auditReport, generateAuditReport]);
 
   const bakeBackground = useCallback(() => {
     const bgCanvas = document.createElement('canvas');
@@ -178,8 +185,80 @@ const App: React.FC = () => {
     bgCanvasRef.current = bgCanvas;
   }, []);
 
+  const isTileOnPath = useCallback((tx: number, ty: number) => {
+    const path = gameRef.current.path;
+    for (let i = 0; i < path.length - 1; i++) {
+      const p1 = path[i];
+      const p2 = path[i + 1];
+      if (p1.x === p2.x && tx === p1.x) {
+        if (ty >= Math.min(p1.y, p2.y) && ty <= Math.max(p1.y, p2.y)) return true;
+      }
+      if (p1.y === p2.y && ty === p1.y) {
+        if (tx >= Math.min(p1.x, p2.x) && tx <= Math.max(p1.x, p2.x)) return true;
+      }
+    }
+    return false;
+  }, []);
+
+  const addLog = useCallback((msg: string) => {
+    setGameState(prev => ({
+      ...prev,
+      statusLog: [msg, ...prev.statusLog].slice(0, 20)
+    }));
+  }, []);
+
+  const toggleTacticalOverlay = useCallback(() => {
+    setGameState(prev => {
+      const newState = !prev.isTacticalOverlayOpen;
+      if (newState) {
+        addLog('[SYS] INITIATING TACTICAL DIAGNOSTIC OVERLAY...');
+      }
+      return { ...prev, isTacticalOverlayOpen: newState };
+    });
+  }, [addLog]);
+
+  const startWave = useCallback(async () => {
+    if (activeWave) return;
+    addLog(`[WAVE_${gameState.waveNumber + 1}] COMMENCING SECURITY AUDIT...`);
+    gameRef.current.enemiesToSpawn = 6 + gameState.waveNumber * 3;
+    gameRef.current.spawnTimer = 0;
+    setActiveWave(true);
+  }, [activeWave, gameState.waveNumber, addLog]);
+
+  const isDiagnosticDisabled = useMemo(() => !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory || !gameState.sessionActive, [gameState]);
+  const isBreachDisabled = useMemo(() => activeWave || gameState.isProcessing || !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory || !gameState.sessionActive, [activeWave, gameState]);
+
+  const toggleSelect = useCallback((idx: number) => {
+    setSelectedNodeIndex(null);
+    setReroutingNodeIndex(null);
+    setSelectedIndices(prev => {
+      if (prev.includes(idx)) return prev.filter(i => i !== idx);
+      return [idx];
+    });
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Numerical Shortcuts for Cards 1-5
+      if (e.key >= '1' && e.key <= '5') {
+        const idx = parseInt(e.key) - 1;
+        if (gameState.sessionActive && gameState.hand[idx] && !gameState.isProcessing && !activeWave) {
+          toggleSelect(idx);
+        }
+      }
+
+      // Space to Start Wave
+      if (e.key === ' ' && !isBreachDisabled) {
+        e.preventDefault();
+        startWave();
+      }
+
+      // Tab for Tactical Overlay
+      if (e.key === 'Tab' && !isDiagnosticDisabled) {
+        e.preventDefault();
+        toggleTacticalOverlay();
+      }
+
       if (e.key === 'Escape') {
         if (reroutingNodeIndex !== null) {
           addLog('[SYS] REROUTE SEQUENCE ABORTED.');
@@ -192,7 +271,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [reroutingNodeIndex, selectedNodeIndex, selectedIndices, isAboutOpen]);
+  }, [reroutingNodeIndex, selectedNodeIndex, selectedIndices, isAboutOpen, gameState.hand, gameState.sessionActive, gameState.isProcessing, activeWave, toggleSelect, isBreachDisabled, startWave, isDiagnosticDisabled, toggleTacticalOverlay, addLog]);
 
   const drawHand = useCallback((overridingHand?: Card[]) => {
     setGameState(prev => {
@@ -212,70 +291,73 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const resetGame = useCallback(() => {
-    gameRef.current.nodes = [];
-    gameRef.current.enemies = [];
-    gameRef.current.projectiles = [];
-    gameRef.current.deployParticles = [];
-    gameRef.current.defeatedCount = 0;
-    gameRef.current.enemiesToSpawn = 0;
-    gameRef.current.spawnTimer = 0;
-    gameRef.current.difficultyMultiplier = 1.0;
-    gameRef.current.lastFrameTime = performance.now();
-    prevHpRef.current = INITIAL_HP;
-
-    bakeBackground();
-
-    setGameState(prev => ({
-      ...prev,
-      kernelHP: INITIAL_HP,
-      energyPoints: 20,
-      waveNumber: 0,
-      hand: [],
-      deck: [...INITIAL_DECK].sort(() => Math.random() - 0.5),
-      discard: [],
-      isProcessing: false,
-      isScanning: false,
-      isGameStarted: true,
-      isTacticalOverlayOpen: false,
-      isWaveSummaryOpen: false,
-      isVictory: false,
-      lastGeminiResponse: undefined,
-      lastDiagnostic: undefined,
-      redemptionCard: undefined,
-      statusLog: ['[SYS_REBOOT] FLUSHING SYSTEM CACHE...', '[SYS_REBOOT] KERNEL RE-INITIALIZED.'],
-      totalCardsDeployed: 0,
-      advisoryCount: 0,
-    }));
-
-    setActiveWave(false);
-    setSelectedIndices([]);
-    setShowRedemption(false);
-    setSelectedNodeIndex(null);
-    setReroutingNodeIndex(null);
-    setFloatingTexts([]);
+  const triggerRebootSequence = useCallback(() => {
+    setIsShuttingDown(true);
     setAuditReport(null);
-    drawHand([]);
+    
+    setTimeout(() => {
+      gameRef.current.nodes = [];
+      gameRef.current.enemies = [];
+      gameRef.current.projectiles = [];
+      gameRef.current.deployParticles = [];
+      gameRef.current.defeatedCount = 0;
+      gameRef.current.enemiesToSpawn = 0;
+      gameRef.current.spawnTimer = 0;
+      gameRef.current.difficultyMultiplier = 1.0;
+      gameRef.current.lastFrameTime = performance.now();
+      prevHpRef.current = INITIAL_HP;
+
+      bakeBackground();
+
+      setGameState(prev => ({
+        ...prev,
+        kernelHP: INITIAL_HP,
+        energyPoints: 20,
+        waveNumber: 0,
+        hand: [],
+        deck: [...INITIAL_DECK].sort(() => Math.random() - 0.5),
+        discard: [],
+        isProcessing: false,
+        isScanning: false,
+        isGameStarted: false,
+        sessionActive: false,
+        isTacticalOverlayOpen: false,
+        isWaveSummaryOpen: false,
+        isVictory: false,
+        lastGeminiResponse: undefined,
+        lastDiagnostic: undefined,
+        redemptionCard: undefined,
+        statusLog: [
+          '[SYS_REBOOT] FLUSHING SYSTEM CACHE...', 
+          '[SYS_REBOOT] KERNEL RE-INITIALIZED.',
+          '[SYS] HOTKEY_INTERFACE_ENABLED'
+        ],
+        totalCardsDeployed: 0,
+        advisoryCount: 0,
+      }));
+
+      setActiveWave(false);
+      setSelectedIndices([]);
+      setShowRedemption(false);
+      setSelectedNodeIndex(null);
+      setReroutingNodeIndex(null);
+      setFloatingTexts([]);
+      setIsShuttingDown(false);
+      drawHand([]);
+    }, 1000);
   }, [drawHand, bakeBackground]);
 
   useEffect(() => {
-    if (gameState.isGameStarted && gameState.hand.length === 0 && !gameState.isProcessing) {
+    if (gameState.isGameStarted && gameState.hand.length === 0 && !gameState.isProcessing && gameState.sessionActive) {
       checkForRedemption();
       drawHand();
     }
-  }, [gameState.isGameStarted, drawHand, gameState.isProcessing]);
+  }, [gameState.isGameStarted, drawHand, gameState.isProcessing, gameState.sessionActive]);
 
   const startGame = () => {
     bakeBackground();
-    setGameState(prev => ({ ...prev, isGameStarted: true }));
+    setGameState(prev => ({ ...prev, isGameStarted: true, sessionActive: true }));
     speak("Aegis OS Kernel initialized. Core active. Systems ready for breach audit.");
-  };
-
-  const toggleTacticalOverlay = () => {
-    setGameState(prev => ({ ...prev, isTacticalOverlayOpen: !prev.isTacticalOverlayOpen }));
-    if (!gameState.isTacticalOverlayOpen) {
-      addLog('[SYS] INITIATING TACTICAL DIAGNOSTIC OVERLAY...');
-    }
   };
 
   const checkForRedemption = async () => {
@@ -311,21 +393,6 @@ const App: React.FC = () => {
     setGameState(prev => ({ ...prev, history: newHistory }));
   }, [gameState.waveNumber, gameState.history]);
 
-  const addLog = (msg: string) => {
-    setGameState(prev => ({
-      ...prev,
-      statusLog: [msg, ...prev.statusLog].slice(0, 20)
-    }));
-  };
-
-  const startWave = async () => {
-    if (activeWave) return;
-    addLog(`[WAVE_${gameState.waveNumber + 1}] COMMENCING SECURITY AUDIT...`);
-    gameRef.current.enemiesToSpawn = 6 + gameState.waveNumber * 3;
-    gameRef.current.spawnTimer = 0;
-    setActiveWave(true);
-  };
-
   const runVisualDiagnostic = async () => {
     if (!canvasRef.current || gameState.isScanning) return;
     setGameState(prev => ({ ...prev, isScanning: true }));
@@ -353,7 +420,8 @@ const App: React.FC = () => {
         ...prev, 
         isWaveSummaryOpen: true, 
         isVictory: true,
-        waveNumber: waveJustCompleted // Increment to show wave 5 completed
+        sessionActive: false,
+        waveNumber: waveJustCompleted 
       }));
       addLog('[AEGIS] SYSTEM PURIFIED. ALL MALWARE VANQUISHED.');
       speak("Sector sanitized. Core integrity maintained. Congratulations, operator.");
@@ -361,10 +429,10 @@ const App: React.FC = () => {
       setGameState(prev => ({ ...prev, isWaveSummaryOpen: true }));
       addLog('[SYS] SECTOR STABILIZED. PREPARING TELEMETRY AUDIT...');
     }
-  }, [gameState.waveNumber]);
+  }, [gameState.waveNumber, addLog]);
 
   const proceedToNextCycle = async () => {
-    if (gameState.isVictory) return;
+    if (gameState.isVictory || !gameState.sessionActive) return;
     
     setGameState(prev => ({ ...prev, isWaveSummaryOpen: false, isProcessing: true }));
     addLog('[SYS] BREACH EVENT CONCLUDED. ANALYZING DATA...');
@@ -409,10 +477,11 @@ const App: React.FC = () => {
   };
 
   const abortAuditAndTerminate = () => {
-    if (gameState.isVictory) return;
+    if (gameState.isVictory || !gameState.sessionActive) return;
     setGameState(prev => ({ 
       ...prev, 
-      kernelHP: 0
+      kernelHP: 0,
+      sessionActive: false
     }));
     addLog('[CRITICAL] USER TERMINATION PROTOCOL ENGAGED.');
     speak("Audit aborted. System termination requested. Processing final telemetry.");
@@ -423,16 +492,6 @@ const App: React.FC = () => {
     if (gameState.isVictory || gameState.kernelHP <= 0) {
       generateAuditReport();
     }
-  };
-
-  const toggleSelect = (idx: number) => {
-    setSelectedNodeIndex(null);
-    setReroutingNodeIndex(null);
-    setSelectedIndices(prev => {
-      if (prev.includes(idx)) return prev.filter(i => i !== idx);
-      if (prev.length >= 1) return [idx];
-      return [idx];
-    });
   };
 
   const purgeCard = (idx: number, e: React.MouseEvent) => {
@@ -543,8 +602,8 @@ const App: React.FC = () => {
       const cost = Math.max(1, Math.floor(node.card.cost * 0.1));
       
       const occupied = gameRef.current.nodes.find(n => n.gridX === x && n.gridY === y);
-      if (occupied) {
-        addLog('[ERROR] PORT OCCUPIED. REROUTE CANCELLED.');
+      if (occupied || isTileOnPath(x, y)) {
+        addLog('[ERROR] PORT UNAVAILABLE. REROUTE CANCELLED.');
         setReroutingNodeIndex(null);
         return;
       }
@@ -587,7 +646,10 @@ const App: React.FC = () => {
       const card = gameState.hand[idx];
       if (card.type === CardType.SECURITY_NODE && gameState.energyPoints >= card.cost) {
         const occupied = gameRef.current.nodes.find(n => n.gridX === x && n.gridY === y);
-        if (occupied) return;
+        if (occupied || isTileOnPath(x, y)) {
+          addLog('[ERROR] SECTOR PORT UNAVAILABLE.');
+          return;
+        }
         const newNode = new SecurityNode(x, y, card);
         gameRef.current.nodes.push(newNode);
 
@@ -685,10 +747,11 @@ const App: React.FC = () => {
       ctx.fillRect(core.x * TILE_SIZE + 5, core.y * TILE_SIZE + 5, 50, 50);
       ctx.shadowBlur = 0;
 
-      gameRef.current.deployParticles.forEach((p, idx) => {
+      for (let i = gameRef.current.deployParticles.length - 1; i >= 0; i--) {
+        const p = gameRef.current.deployParticles[i];
         p.life -= dt;
         if (p.life <= 0) {
-          gameRef.current.deployParticles.splice(idx, 1);
+          gameRef.current.deployParticles.splice(i, 1);
         } else {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
@@ -701,9 +764,9 @@ const App: React.FC = () => {
           ctx.fillRect(p.x, p.y, 2, 2);
           ctx.restore();
         }
-      });
+      }
 
-      if (activeWave) {
+      if (activeWave && gameState.sessionActive) {
         if (gameRef.current.enemiesToSpawn > 0) {
           gameRef.current.spawnTimer += dt;
           if (gameRef.current.spawnTimer >= 0.8) {
@@ -719,7 +782,8 @@ const App: React.FC = () => {
           }
         }
         
-        gameRef.current.enemies.forEach((e, idx) => {
+        for (let i = gameRef.current.enemies.length - 1; i >= 0; i--) {
+          const e = gameRef.current.enemies[i];
           if (e.update(dt)) {
             setGameState(prev => {
               const newHP = Math.max(0, prev.kernelHP - 12);
@@ -729,18 +793,19 @@ const App: React.FC = () => {
               }
               return { ...prev, kernelHP: newHP };
             });
-            gameRef.current.enemies.splice(idx, 1);
+            gameRef.current.enemies.splice(i, 1);
           } else if (e.hp <= 0) {
-            gameRef.current.enemies.splice(idx, 1);
+            gameRef.current.enemies.splice(i, 1);
             gameRef.current.defeatedCount++;
             setGameState(prev => ({ ...prev, energyPoints: Math.min(MAX_ENERGY, prev.energyPoints + 2) }));
           }
-        });
+        }
         
-        gameRef.current.projectiles.forEach((p, idx) => {
+        for (let i = gameRef.current.projectiles.length - 1; i >= 0; i--) {
+          const p = gameRef.current.projectiles[i];
           p.update();
-          if (p.isDead) gameRef.current.projectiles.splice(idx, 1);
-        });
+          if (p.isDead) gameRef.current.projectiles.splice(i, 1);
+        }
         
         gameRef.current.nodes.forEach(n => {
           n.update(dt, gameRef.current.enemies, (node, target) => {
@@ -757,10 +822,11 @@ const App: React.FC = () => {
       
       if (reroutingNodeIndex !== null) {
           ctx.fillStyle = 'rgba(61, 220, 255, 0.05)';
-          for(let i=0; i<GRID_SIZE; i++) {
-              for(let j=0; j<GRID_SIZE; j++) {
-                  const occupied = gameRef.current.nodes.find(n => n.gridX === i && n.gridY === j);
-                  if (!occupied) ctx.fillRect(i * TILE_SIZE + 2, j * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+          for(let gx=0; gx<GRID_SIZE; gx++) {
+              for(let gy=0; gy<GRID_SIZE; gy++) {
+                  const occupied = gameRef.current.nodes.find(n => n.gridX === gx && n.gridY === gy);
+                  const onPath = isTileOnPath(gx, gy);
+                  if (!occupied && !onPath) ctx.fillRect(gx * TILE_SIZE + 2, gy * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
               }
           }
       }
@@ -782,20 +848,48 @@ const App: React.FC = () => {
         }
       }
 
-      if ((selectedIndices.length === 1 || reroutingNodeIndex !== null) && mousePos) {
+      if ((selectedIndices.length === 1 || reroutingNodeIndex !== null) && mousePos && gameState.sessionActive) {
           const card = reroutingNodeIndex !== null ? gameRef.current.nodes[reroutingNodeIndex].card : gameState.hand[selectedIndices[0]];
           const range = (card.stats?.range || 2) * TILE_SIZE;
+          
           ctx.beginPath();
           ctx.arc(mousePos.x * TILE_SIZE + TILE_SIZE/2, mousePos.y * TILE_SIZE + TILE_SIZE/2, range, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(61, 220, 255, 0.1)';
+          ctx.fillStyle = 'rgba(61, 220, 255, 0.08)';
           ctx.fill();
-          ctx.strokeStyle = 'rgba(61, 220, 255, 0.3)';
+          ctx.strokeStyle = 'rgba(61, 220, 255, 0.25)';
+          ctx.lineWidth = 1;
           ctx.stroke();
 
-          ctx.strokeStyle = reroutingNodeIndex !== null ? 'rgba(61, 220, 255, 0.6)' : 'rgba(156, 255, 87, 0.4)';
+          const onPath = isTileOnPath(mousePos.x, mousePos.y);
+          const occupied = gameRef.current.nodes.find(n => n.gridX === mousePos.x && n.gridY === mousePos.y);
+          const isInvalid = onPath || occupied;
+          
+          ctx.save();
           ctx.setLineDash([4, 4]);
-          ctx.strokeRect(mousePos.x * TILE_SIZE + 5, mousePos.y * TILE_SIZE + 5, 50, 50);
+          ctx.lineWidth = 2;
+          if (isInvalid) {
+            ctx.strokeStyle = 'rgba(255, 59, 59, 0.7)';
+            ctx.fillStyle = 'rgba(255, 59, 59, 0.05)';
+          } else {
+            ctx.strokeStyle = 'rgba(156, 255, 87, 0.7)';
+            ctx.fillStyle = 'rgba(156, 255, 87, 0.05)';
+          }
+          
+          const rectPadding = 5;
+          ctx.fillRect(mousePos.x * TILE_SIZE + rectPadding, mousePos.y * TILE_SIZE + rectPadding, TILE_SIZE - rectPadding * 2, TILE_SIZE - rectPadding * 2);
+          ctx.strokeRect(mousePos.x * TILE_SIZE + rectPadding, mousePos.y * TILE_SIZE + rectPadding, TILE_SIZE - rectPadding * 2, TILE_SIZE - rectPadding * 2);
+          
           ctx.setLineDash([]);
+          ctx.font = 'bold 10px Fira Code';
+          ctx.textAlign = 'center';
+          if (isInvalid) {
+            ctx.fillStyle = 'rgba(255, 59, 59, 0.9)';
+            ctx.fillText('[ILLEGAL_PORT]', mousePos.x * TILE_SIZE + TILE_SIZE / 2, mousePos.y * TILE_SIZE - 10);
+          } else {
+            ctx.fillStyle = 'rgba(156, 255, 87, 0.9)';
+            ctx.fillText('[COMMITTING_RAM...]', mousePos.x * TILE_SIZE + TILE_SIZE / 2, mousePos.y * TILE_SIZE - 10);
+          }
+          ctx.restore();
       }
 
       if (gameState.isScanning) {
@@ -810,14 +904,14 @@ const App: React.FC = () => {
     };
     requestRef = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef);
-  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam, bakeBackground, gameState.lastGeminiResponse]);
+  }, [activeWave, endWave, gameState.isScanning, gameState.isGameStarted, gameState.sessionActive, isTileOnPath, saveSession, selectedIndices, mousePos, gameState.hand, reroutingNodeIndex, rerouteBeam, bakeBackground, gameState.lastGeminiResponse]);
 
   const canFuse = selectedIndices.length === 2 && 
                   gameState.hand[selectedIndices[0]]?.id === gameState.hand[selectedIndices[1]]?.id &&
                   gameState.hand[selectedIndices[0]]?.fusionTargetId;
 
   const fuseCards = useCallback(() => {
-    if (!canFuse) return;
+    if (!canFuse || !gameState.sessionActive) return;
     const [i1, i2] = selectedIndices;
     const card1 = gameState.hand[i1];
     const targetId = card1.fusionTargetId;
@@ -836,7 +930,7 @@ const App: React.FC = () => {
       });
       setSelectedIndices([]);
     }
-  }, [selectedIndices, gameState.hand, canFuse]);
+  }, [selectedIndices, gameState.hand, canFuse, gameState.sessionActive, addLog]);
 
   const selectedNode = selectedNodeIndex !== null ? gameRef.current.nodes[selectedNodeIndex] : null;
 
@@ -886,9 +980,6 @@ const App: React.FC = () => {
     });
   }, [gameState.statusLog]);
 
-  const isDiagnosticDisabled = !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory;
-  const isBreachDisabled = activeWave || gameState.isProcessing || !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory;
-
   const recentLogsForSummary = useMemo(() => {
     return gameState.statusLog
       .filter(log => log.includes('[AEGIS]') || log.includes('[SYS]'))
@@ -900,6 +991,12 @@ const App: React.FC = () => {
       className={mainWrapperClass}
       style={{ '--flicker-speed': flickerSpeed } as React.CSSProperties}
     >
+      {isShuttingDown && (
+        <div className="absolute inset-0 z-[100] bg-black flex items-center justify-center">
+          <div className="text-white font-mono text-xs tracking-[0.5em] animate-pulse">TERMINATING_SESSIONS... REBOOTING_CORE...</div>
+        </div>
+      )}
+
       <aside className="w-1/4 border-r border-[#1A2A40] flex flex-col bg-[#050814]/50 backdrop-blur-sm z-20">
         <header className="p-4 border-b border-[#1A2A40] flex justify-between items-center bg-[#1A2A40]/10">
           <span className="font-black text-[#3DDCFF] italic text-xs tracking-wider uppercase">DIAG_ZONE_A</span>
@@ -955,7 +1052,7 @@ const App: React.FC = () => {
               "border-[#1A2A40] text-gray-500 hover:text-[#3DDCFF] hover:border-[#3DDCFF]"
             }`}
           >
-            {gameState.isTacticalOverlayOpen ? "CLOSE_TACTICAL" : "VISUAL_DIAGNOSTIC"}
+            {gameState.isTacticalOverlayOpen ? "CLOSE_TACTICAL [TAB]" : "VISUAL_DIAGNOSTIC [TAB]"}
           </button>
           <button 
             onClick={startWave}
@@ -964,7 +1061,7 @@ const App: React.FC = () => {
               isBreachDisabled ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10 shadow-[0_0_15px_rgba(61,220,255,0.2)]"
             }`}
           >
-            {gameState.isProcessing ? "REASONING..." : "INIT_BREACH"}
+            {gameState.isProcessing ? "REASONING..." : "INIT_BREACH [SPACE]"}
           </button>
         </footer>
       </aside>
@@ -988,7 +1085,7 @@ const App: React.FC = () => {
           {selectedNode && (
             <div className="absolute border-2 border-[#3DDCFF] animate-reticle pointer-events-none z-10" style={{ left: selectedNode.gridX * TILE_SIZE, top: selectedNode.gridY * TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE, boxShadow: '0 0 10px #3DDCFF' }} />
           )}
-          {selectedNode && (
+          {selectedNode && gameState.sessionActive && (
             <div className="absolute z-40 holographic-panel p-4 shadow-[0_0_20px_rgba(156,255,87,0.2)] animate-monitor-on w-64" style={{ left: Math.min(selectedNode.gridX * TILE_SIZE + TILE_SIZE + 10, 600 - 256), top: Math.max(selectedNode.gridY * TILE_SIZE - 40, 0) }}>
               <div className="flex justify-between items-center mb-3 border-b border-[#9CFF57]/30 pb-1">
                 <span className="text-[11px] font-black uppercase tracking-widest text-[#9CFF57] italic">PROT_SPEC: {selectedNode.card.name}</span>
@@ -1027,7 +1124,7 @@ const App: React.FC = () => {
               <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
                 <div className="flex flex-col space-y-6 overflow-hidden">
                   <div className="p-4 border border-[#3DDCFF]/30 bg-[#3DDCFF]/5 flex-1 flex flex-col">
-                    <div className="text-[#3DDCFF] font-black text-[11px] mb-4 tracking-[0.2em] italic uppercase">>> Gemini_Visual_Intelligence</div>
+                    <div className="text-[#3DDCFF] font-black text-[11px] mb-4 tracking-widest italic uppercase">>> Gemini_Visual_Intelligence</div>
                     {gameState.lastDiagnostic ? (
                       <div className="space-y-4 animate-in fade-in duration-700">
                         <div className="flex justify-between items-center bg-yellow-900/20 p-2 border border-yellow-500/30"><span className="text-yellow-500 font-black text-xs uppercase">Weakest_Sector:</span><span className="text-white font-black text-lg">{gameState.lastDiagnostic.weakest_sector}</span></div>
@@ -1056,12 +1153,12 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {(!gameState.isGameStarted || (gameState.kernelHP <= 0 && !auditReport)) && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
+        {(!gameState.isGameStarted && !isShuttingDown) && (
+          <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-md">
             <div className="relative p-12 holographic-panel border-2 border-[#3DDCFF] shadow-[0_0_30px_#3DDCFF] max-w-lg w-full text-center group transition-all animate-monitor-on">
               <div className="absolute top-0 left-0 w-full h-1 bg-[#3DDCFF] flicker"></div>
               <div className="mb-8"><h2 role={gameState.kernelHP <= 0 ? "alert" : undefined} className={`text-5xl font-black italic tracking-tighter uppercase mb-2 flicker ${gameState.kernelHP <= 0 ? 'text-red-500 shadow-red-500' : 'text-[#3DDCFF]'}`}>{gameState.kernelHP <= 0 ? 'BREACH_CRITICAL' : 'CIRCUIT_BREACH'}</h2><div className="text-[11px] text-gray-500 tracking-[0.8em] font-black uppercase border-y border-[#1A2A40] py-2">Aegis_OS // Strategic_Defense_Kernel</div></div>
-              <button onClick={gameState.kernelHP <= 0 ? resetGame : startGame} className={`group relative w-full py-6 font-black text-sm tracking-[0.5em] uppercase transition-all overflow-hidden border-2 ${gameState.kernelHP <= 0 ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10'}`}><span className="relative z-10">{gameState.kernelHP <= 0 ? 'REBOOT_KERNEL' : 'INITIALIZE_SYSTEM'}</span><div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:left-full transition-all duration-700"></div></button>
+              <button onClick={startGame} className={`group relative w-full py-6 font-black text-sm tracking-[0.5em] uppercase transition-all overflow-hidden border-2 ${gameState.kernelHP <= 0 ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10'}`}><span className="relative z-10">{gameState.kernelHP <= 0 ? 'REBOOT_KERNEL' : 'INITIALIZE_SYSTEM'}</span><div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:left-full transition-all duration-700"></div></button>
               <button 
                 onClick={() => setIsAboutOpen(true)} 
                 className="w-full py-4 mt-4 border-2 border-[#3DDCFF] text-[#3DDCFF] font-black text-[11px] tracking-[0.4em] uppercase hover:bg-[#3DDCFF]/10 transition-all rounded"
@@ -1140,16 +1237,16 @@ const App: React.FC = () => {
 
               <footer className="grid grid-cols-2 gap-4 mt-auto">
                 <button 
-                  disabled={gameState.kernelHP <= 0 || gameState.isVictory}
+                  disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive}
                   onClick={proceedToNextCycle} 
-                  className={`py-5 font-black uppercase tracking-[0.5em] transition-all text-sm ${(gameState.kernelHP <= 0 || gameState.isVictory) ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
+                  className={`py-5 font-black uppercase tracking-[0.5em] transition-all text-sm ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
                 >
                   [PROCEED_TO_NEXT_CYCLE]
                 </button>
                 <button 
-                  disabled={gameState.kernelHP <= 0 || gameState.isVictory}
+                  disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive}
                   onClick={abortAuditAndTerminate} 
-                  className={`py-5 border-2 font-black uppercase tracking-[0.4em] transition-all text-sm flex flex-col items-center justify-center leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory) ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
+                  className={`py-5 border-2 font-black uppercase tracking-[0.4em] transition-all text-sm flex flex-col items-center justify-center leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
                 >
                   <span>Abort_Audit &</span>
                   <span>Terminate</span>
@@ -1260,8 +1357,8 @@ const App: React.FC = () => {
 
               <footer className="mt-auto flex justify-center">
                 <button 
-                  onClick={resetGame} 
-                  className="w-1/2 py-5 bg-[#9CFF57] text-black font-black uppercase tracking-[0.5em] hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all text-sm"
+                  onClick={triggerRebootSequence} 
+                  className="w-1/2 py-5 bg-[#9CFF57] text-black font-black uppercase tracking-[0.5em] hover:bg-white transition-all text-sm"
                 >
                   REBOOT_KERNEL
                 </button>
@@ -1287,7 +1384,6 @@ const App: React.FC = () => {
            {gameState.lastGeminiResponse ? (
              <div className="space-y-4 font-mono animate-monitor-on">
                 <div className="p-3 bg-[#3DDCFF]/5 border border-[#3DDCFF]/20 rounded relative overflow-hidden"><div className="card-scanline opacity-10"></div><div className="text-[#3DDCFF] text-[11px] font-black uppercase mb-1 flex items-center"><span className="w-1.5 h-1.5 bg-[#3DDCFF] rounded-full mr-2 shadow-[0_0_5px_#3DDCFF]"></span>Performance_Gap</div><div className="text-white text-[11px] font-bold leading-tight uppercase tracking-tighter">{gameState.lastGeminiResponse.tactical_analysis.skill_gap_identified}</div><div className="mt-2 text-gray-500 italic text-[10px] leading-relaxed">"{gameState.lastGeminiResponse.tactical_analysis.causal_justification}"</div></div>
-                <div className="text-[10px] text-gray-700 font-black text-center tracking-widest uppercase">DIFF_SCALAR: X{gameState.lastGeminiResponse.wave_parameters.wave_difficulty}</div>
              </div>
            ) : (<div className="text-[11px] text-gray-700 animate-pulse italic">WAITING_FOR_WAVE_DATA...</div>)}
         </section>
@@ -1308,14 +1404,17 @@ const App: React.FC = () => {
                 <div 
                   key={card.id + '-' + i} 
                   onClick={() => toggleSelect(i)} 
-                  className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${rarityClasses} ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${(!canAfford || gameState.isVictory) ? 'opacity-40 grayscale pointer-events-none' : ''}`}
+                  className={`relative p-3 border border-[#9CFF57]/20 cursor-pointer transition-all duration-300 group overflow-hidden ${rarityClasses} ${isSelected ? "bg-[#3DDCFF]/10 border-[#3DDCFF] scale-[1.02]" : "bg-[#0A0F23]/60 hover:bg-[#1A2A40]/40 hover:border-[#9CFF57]/40 hover:-translate-y-1"} ${(!canAfford || gameState.isVictory || !gameState.sessionActive) ? 'opacity-40 grayscale pointer-events-none' : ''}`}
                 >
                   <div className={`card-scanline ${scanlineOpacity}`}></div>
-                  <div className="flex justify-between items-start mb-2 relative z-10"><span className="text-[10px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId}</span><div className="flex items-center"><span className={`text-[13px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span><span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span></div></div>
+                  <div className="flex justify-between items-start mb-2 relative z-10">
+                    <span className="text-[10px] font-mono text-[#3DDCFF] font-black tracking-tighter">{protocolId} [{i+1}]</span>
+                    <div className="flex items-center"><span className={`text-[13px] font-black mr-2 ${canAfford ? 'text-[#3DDCFF]' : 'text-red-500'} shadow-sm`}>{card.cost}</span><span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">GB_RAM</span></div>
+                  </div>
                   <h3 className={`font-black text-[12px] mb-1 relative z-10 tracking-tight uppercase ${card.rarity === 'LEGENDARY' ? 'text-yellow-500' : 'text-[#9CFF57]'}`}>{card.name}</h3>
                   <div className="grid grid-cols-2 gap-2 mt-3 relative z-10 border-t border-[#1A2A40] pt-2">
                     <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[8px]">Bit_Depth</span><span className="text-[11px] text-white font-black">{card.stats?.damage || 0} <span className="text-[8px] text-gray-500">BD</span></span></div>
-                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[8px]">Latency</span><span className="text-[11px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}<span className="text-[8px] text-gray-500 ml-0.5">s</span></span></div>
+                    <div className="flex flex-col"><span className="text-gray-500 font-bold uppercase tracking-widest text-[8px]">Latency</span><span className="text-[11px] text-[#3DDCFF] font-black">{card.stats?.fireRate ? (1/card.stats.fireRate).toFixed(1) : 'N/A'}</span></div>
                     <div className="col-span-2 mt-2 border-t border-[#1A2A40]/50 pt-1">
                       <div className="flex justify-between items-center"><span className="text-[8px] text-[#9CFF57]/60 font-black tracking-widest uppercase italic">>> REASONING_TIP</span><button onClick={(e) => purgeCard(i, e)} className="text-[8px] px-1.5 py-0.5 border border-red-900/40 text-red-900/60 hover:border-red-500 hover:text-red-500 transition-colors uppercase font-black tracking-tighter bg-red-900/5">[PURGE]</button></div>
                       <p className="text-[9px] text-[#9CFF57]/50 font-bold mt-1 leading-tight uppercase truncate">{card.reasoningTip}</p>
@@ -1328,13 +1427,13 @@ const App: React.FC = () => {
           </div>
         </section>
         <footer className="p-4 bg-[#1A2A40]/10 border-t border-[#1A2A40] space-y-3">
-          <button disabled={!canFuse || gameState.isVictory} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse shadow-[0_0_15px_rgba(156,255,87,0.2)]" : "border-gray-800 text-gray-800 opacity-50"}`}>FUSE_SIGNATURES</button>
+          <button disabled={!canFuse || gameState.isVictory || !gameState.sessionActive} onClick={fuseCards} className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse" : "border-gray-800 text-gray-800 opacity-50"}`}>FUSE_SIGNATURES</button>
         </footer>
       </aside>
 
       {showRedemption && gameState.redemptionCard && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-2xl z-50 flex items-center justify-center p-12">
-          <div className="max-w-md w-full p-8 border-4 border-yellow-500 bg-[#050814] shadow-[0_0_100px_rgba(234,179,8,0.5)] relative overflow-hidden group animate-monitor-on"><div className="absolute top-0 left-0 w-full h-1 bg-yellow-500 animate-ping opacity-20"></div><div className="text-yellow-500 font-black tracking-[0.4em] uppercase text-[11px] mb-6 flex items-center"><span className="flex-1 h-px bg-yellow-500/30"></span><span className="mx-4">Redemption_Module_Detected</span><span className="flex-1 h-px bg-yellow-500/30"></span></div><h2 className="text-4xl font-black text-white italic mb-2 tracking-tighter uppercase">{gameState.redemptionCard.name}</h2><p className="text-gray-400 text-sm mb-8 leading-relaxed italic border-l-2 border-yellow-500/50 pl-4 font-mono">"{gameState.redemptionCard.description}"</p><button onClick={() => { setShowRedemption(false); drawHand(); }} className="w-full py-5 bg-yellow-500 text-black font-black uppercase tracking-[0.5em] hover:bg-yellow-400 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] glitch-hover">INTEGRATE_MODULE</button></div>
+          <div className="max-w-md w-full p-8 border-4 border-yellow-500 bg-[#050814] shadow-[0_0_100px_rgba(234,179,8,0.5)] relative overflow-hidden group animate-monitor-on"><div className="absolute top-0 left-0 w-full h-1 bg-yellow-500 animate-ping opacity-20"></div><div className="text-yellow-500 font-black tracking-[0.4em] uppercase text-[11px] mb-6 flex items-center"><span className="flex-1 h-px bg-yellow-500/30"></span><span className="mx-4">Redemption_Module_Detected</span><span className="flex-1 h-px bg-yellow-500/30"></span></div><h2 className="text-4xl font-black text-white italic mb-2 tracking-tighter uppercase">{gameState.redemptionCard.name}</h2><p className="text-gray-400 text-sm mb-8 leading-relaxed italic border-l-2 border-yellow-500/50 pl-4 font-mono">"{gameState.redemptionCard.description}"</p><button onClick={() => { setShowRedemption(false); drawHand(); }} className="w-full py-5 bg-yellow-500 text-black font-black uppercase tracking-[0.5em] hover:bg-yellow-400 transition-all glitch-hover">INTEGRATE_MODULE</button></div>
         </div>
       )}
 
@@ -1352,7 +1451,7 @@ const App: React.FC = () => {
             </p>
             <button 
               onClick={() => setIsAboutOpen(false)} 
-              className="w-full py-5 border-2 border-[#9CFF57] text-[#9CFF57] font-black uppercase tracking-[0.5em] hover:bg-[#9CFF57]/10 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(156,255,87,0.1)]"
+              className="w-full py-5 border-2 border-[#9CFF57] text-[#9CFF57] font-black uppercase tracking-[0.5em] hover:bg-[#9CFF57]/10 transition-all rounded"
             >
               RETURN_TO_TERMINAL
             </button>
