@@ -1,3 +1,12 @@
+## License and Usage
+
+Copyright (c) 2026 Ronald W Kuseski.
+
+This repository is provided for Gemini 3 Hackathon judging and personal review only.
+No permission is granted to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of this software or any derivative works, except with explicit
+written permission from the author.
+
 Project Overview: Circuit Breach
 Circuit Breach is a high-fidelity, cyberpunk-themed roguelike tower defense application that replaces static game logic with the Aegis OS Kernel—a reasoning-driven game director powered by Gemini 3. The project moves beyond traditional hardcoded difficulty, utilizing Deep Think reasoning to analyze player "telemetry" (HP, energy, node placement) and perform real-time grid stabilization.
 
