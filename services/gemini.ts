@@ -9,6 +9,10 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
  * Singleton AudioContext to prevent hardware exhaustion
  */
 let sharedAudioContext: AudioContext | null = null;
+/**
+ * Set to track active audio nodes and prevent resource exhaustion
+ */
+const activeAudioNodes = new Set<AudioBufferSourceNode>();
 
 const getAudioContext = () => {
   if (!sharedAudioContext) {
@@ -58,6 +62,7 @@ async function decodeAudioData(
 
 /**
  * Vocalizes text using the gemini-2.5-flash-preview-tts model
+ * Includes Hardware Guard to prevent stacking too many concurrent audio nodes.
  */
 export const speak = async (text: string): Promise<void> => {
   try {
@@ -77,12 +82,28 @@ export const speak = async (text: string): Promise<void> => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const audioContext = getAudioContext();
+      
+      // Hardware Guard: Limit to 3 concurrent speakers
+      if (activeAudioNodes.size >= 3) {
+        const oldestNode = activeAudioNodes.values().next().value;
+        if (oldestNode) {
+          try { oldestNode.stop(); } catch(e) {}
+          activeAudioNodes.delete(oldestNode);
+        }
+      }
+
       const audioBytes = decodeBase64(base64Audio);
       const audioBuffer = await decodeAudioData(audioBytes, audioContext, 24000, 1);
       
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
+      
+      activeAudioNodes.add(source);
+      source.onended = () => {
+        activeAudioNodes.delete(source);
+      };
+
       source.start();
     }
   } catch (error) {

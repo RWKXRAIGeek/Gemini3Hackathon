@@ -4,6 +4,12 @@
  * This application implements a 'Closed Loop AI' system.
  * 1. Observation (Vision API) -> 2. Reasoning (Deep Think) -> 3. Action (Deterministic JSON Injection)
  * The AI is not a chatbot; it is the Kernel of the game logic.
+ * 
+ * Performance & Stability Optimization "Aegis-Shield" applied:
+ * - 10Hz UI Throttling
+ * - Canvas-based Floating Text
+ * - API Collision Locking
+ * - Memory Hygiene (GC optimizations & Particle Capping)
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -71,6 +77,14 @@ interface DeployParticle {
   maxLife: number;
 }
 
+interface FloatingText {
+  id: number;
+  x: number;
+  y: number;
+  text: string;
+  life: number;
+}
+
 interface AuditReport {
   timestamp: string;
   sectorsStabilized: number;
@@ -95,13 +109,16 @@ const App: React.FC = () => {
     enemies: [] as MalwarePacket[],
     projectiles: [] as FirewallBuffer[],
     deployParticles: [] as DeployParticle[],
+    floatingTexts: [] as FloatingText[],
     defeatedCount: 0,
     enemiesToSpawn: 0,
     spawnTimer: 0,
     difficultyMultiplier: 1.0,
     lastFrameTime: performance.now(),
+    lastSyncTime: 0,
     currentHP: INITIAL_HP,
     currentEnergy: 20,
+    gamePaused: false,
     path: generateMainframePath(GRID_SIZE)
   });
 
@@ -136,7 +153,6 @@ const App: React.FC = () => {
   const [showRedemption, setShowRedemption] = useState(false);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState<number | null>(null);
   const [reroutingNodeIndex, setReroutingNodeIndex] = useState<number | null>(null);
-  const [floatingTexts, setFloatingTexts] = useState<{id: number, x: number, y: number, text: string}[]>([]);
   const [ramFlash, setRamFlash] = useState(false);
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [rerouteBeam, setRerouteBeam] = useState<{from: Point, to: Point, opacity: number} | null>(null);
@@ -199,6 +215,10 @@ const App: React.FC = () => {
   }, [gameState.kernelHP, gameState.sessionActive, auditReport, generateAuditReport]);
 
   const bakeBackground = useCallback(() => {
+    // Memory Hygiene: Explicitly nullify previous canvas to help Garbage Collector
+    if (bgCanvasRef.current) {
+        bgCanvasRef.current = null;
+    }
     const bgCanvas = document.createElement('canvas');
     bgCanvas.width = 600;
     bgCanvas.height = 600;
@@ -267,10 +287,13 @@ const App: React.FC = () => {
     setActiveWave(true);
   }, [activeWave, gameState.waveNumber, addLog]);
 
-  const isDiagnosticDisabled = useMemo(() => !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory || !gameState.sessionActive, [gameState]);
-  const isBreachDisabled = useMemo(() => activeWave || gameState.isProcessing || !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory || !gameState.sessionActive, [activeWave, gameState]);
+  const isDiagnosticDisabled = useMemo(() => !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning, [gameState]);
+  const isBreachDisabled = useMemo(() => activeWave || gameState.isProcessing || gameState.isScanning || !gameState.isGameStarted || gameState.kernelHP <= 0 || gameState.isWaveSummaryOpen || gameState.isVictory || !gameState.sessionActive, [activeWave, gameState]);
 
   const toggleSelect = useCallback((idx: number) => {
+    // API Race Condition Lock
+    if (gameState.isProcessing || gameState.isScanning) return;
+    
     setSelectedNodeIndex(null);
     setReroutingNodeIndex(null);
     setSelectedIndices(prev => {
@@ -278,13 +301,13 @@ const App: React.FC = () => {
       if (prev.length < 2) return [...prev, idx];
       return [idx];
     });
-  }, []);
+  }, [gameState.isProcessing, gameState.isScanning]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key >= '1' && e.key <= '5') {
         const idx = parseInt(e.key) - 1;
-        if (gameState.sessionActive && gameState.hand[idx] && !gameState.isProcessing && !activeWave) {
+        if (gameState.sessionActive && gameState.hand[idx] && !gameState.isProcessing && !gameState.isScanning && !activeWave) {
           toggleSelect(idx);
         }
       }
@@ -311,7 +334,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [reroutingNodeIndex, selectedNodeIndex, selectedIndices, isAboutOpen, gameState.hand, gameState.sessionActive, gameState.isProcessing, activeWave, toggleSelect, isBreachDisabled, startWave, isDiagnosticDisabled, toggleTacticalOverlay, addLog]);
+  }, [reroutingNodeIndex, selectedNodeIndex, selectedIndices, isAboutOpen, gameState.hand, gameState.sessionActive, gameState.isProcessing, gameState.isScanning, activeWave, toggleSelect, isBreachDisabled, startWave, isDiagnosticDisabled, toggleTacticalOverlay, addLog]);
 
   const drawHand = useCallback((overridingHand?: Card[]) => {
     setGameState(prev => {
@@ -340,6 +363,7 @@ const App: React.FC = () => {
       gameRef.current.enemies = [];
       gameRef.current.projectiles = [];
       gameRef.current.deployParticles = [];
+      gameRef.current.floatingTexts = [];
       gameRef.current.defeatedCount = 0;
       gameRef.current.enemiesToSpawn = 0;
       gameRef.current.spawnTimer = 0;
@@ -384,18 +408,17 @@ const App: React.FC = () => {
       setShowRedemption(false);
       setSelectedNodeIndex(null);
       setReroutingNodeIndex(null);
-      setFloatingTexts([]);
       setIsShuttingDown(false);
       drawHand([]);
     }, 1000);
   }, [drawHand, bakeBackground]);
 
   useEffect(() => {
-    if (gameState.isGameStarted && gameState.hand.length === 0 && !gameState.isProcessing && gameState.sessionActive) {
+    if (gameState.isGameStarted && gameState.hand.length === 0 && !gameState.isProcessing && !gameState.isScanning && gameState.sessionActive) {
       checkForRedemption();
       drawHand();
     }
-  }, [gameState.isGameStarted, drawHand, gameState.isProcessing, gameState.sessionActive]);
+  }, [gameState.isGameStarted, drawHand, gameState.isProcessing, gameState.isScanning, gameState.sessionActive]);
 
   const startGame = () => {
     gameRef.current.path = generateMainframePath(GRID_SIZE); // Randomize path for first start
@@ -441,6 +464,7 @@ const App: React.FC = () => {
 
   /**
    * Refactored to be strictly awaitable for sequential UI phases.
+   * Stability Protocol: Synchronous Blocking Mitigation for canvas.toDataURL
    */
   const runVisualDiagnostic = async (): Promise<VisualDiagnosticResponse | null> => {
     if (!canvasRef.current || gameState.isScanning) return null;
@@ -452,7 +476,12 @@ const App: React.FC = () => {
     // Small delay to ensure the scanline animation is visible before the API call
     await new Promise(resolve => setTimeout(resolve, 50));
     
+    // Synchronous Blocking Mitigation: Pause game ref to prevent huge time jumps
+    gameRef.current.gamePaused = true;
     const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
+    gameRef.current.gamePaused = false;
+    gameRef.current.lastFrameTime = performance.now(); // Reset time anchor
+
     const diagnostic = await getVisualDiagnostic(imageData);
     
     if (diagnostic) {
@@ -490,14 +519,10 @@ const App: React.FC = () => {
   }, [gameState.waveNumber, addLog]);
 
   /**
-   * Refactored inter-wave sequence:
-   * 1. Phase 1 (Observation): Close summary and await visual scan.
-   * 2. Phase 2 (Processing): Show Thinking splash.
-   * 3. Phase 3 (Synthesis): Perform getAegisReasoning.
-   * 4. Phase 4 (Commitment): Apply state updates and hide thinking.
+   * Refactored inter-wave sequence with API collision locks.
    */
   const proceedToNextCycle = async () => {
-    if (gameState.isVictory || !gameState.sessionActive) return;
+    if (gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning) return;
     
     // --- Phase 1: Observation ---
     setGameState(prev => ({ ...prev, isWaveSummaryOpen: false }));
@@ -551,7 +576,7 @@ const App: React.FC = () => {
   };
 
   const abortAuditAndTerminate = () => {
-    if (gameState.isVictory || !gameState.sessionActive) return;
+    if (gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning) return;
     gameRef.current.currentHP = 0;
     setGameState(prev => ({ 
       ...prev, 
@@ -590,12 +615,9 @@ const App: React.FC = () => {
     addLog('[SYS] MANUAL DATA PURGE EXECUTED (-2 EP)');
   };
 
+  // State-to-Canvas Migration: floatingText moved to gameRef loop
   const spawnFloatingText = useCallback((x: number, y: number, text: string) => {
-    const id = Date.now();
-    setFloatingTexts(prev => [...prev, { id, x, y, text }]);
-    setTimeout(() => {
-        setFloatingTexts(prev => prev.filter(ft => ft.id !== id));
-    }, 1200);
+    gameRef.current.floatingTexts.push({ id: Date.now() + Math.random(), x, y, text, life: 1.0 });
   }, []);
 
   const triggerRamFlash = useCallback(() => {
@@ -604,6 +626,7 @@ const App: React.FC = () => {
   }, []);
 
   const decompileNode = (idx: number) => {
+    if (gameState.isProcessing || gameState.isScanning) return;
     const node = gameRef.current.nodes[idx];
     const card = node.card;
 
@@ -645,15 +668,22 @@ const App: React.FC = () => {
   };
 
   const initReroute = (idx: number) => {
+    if (gameState.isProcessing || gameState.isScanning) return;
     setReroutingNodeIndex(idx);
     setSelectedNodeIndex(null);
     addLog('[SYS] INITIATING DATA REROUTE... SELECT DESTINATION PORT.');
   };
 
   const spawnDeployParticles = (tx: number, ty: number) => {
+    // Memory Hygiene: Cap particles to prevent overflow
+    const maxParticles = 50;
+    const currentParticles = gameRef.current.deployParticles.length;
+    const toSpawn = Math.min(15, maxParticles - currentParticles);
+    if (toSpawn <= 0) return;
+
     const startX = -100;
     const startY = 200;
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < toSpawn; i++) {
       const angle = Math.atan2(ty - startY, tx - startX) + (Math.random() - 0.5) * 0.5;
       const speed = 400 + Math.random() * 200;
       gameRef.current.deployParticles.push({
@@ -668,6 +698,9 @@ const App: React.FC = () => {
   };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
+    // API Race Condition Lock
+    if (gameState.isProcessing || gameState.isScanning) return;
+
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     const x = Math.floor((e.clientX - rect.left) / TILE_SIZE);
@@ -703,10 +736,7 @@ const App: React.FC = () => {
       setTimeout(() => setRerouteBeam(null), 500);
 
       gameRef.current.currentEnergy -= cost;
-      setGameState(prev => ({
-        ...prev,
-        energyPoints: prev.energyPoints - cost
-      }));
+      // Note: Energy will sync in the next 10Hz tick
       addLog(`[SYS] REROUTE COMPLETE: 0x${x}${y} ACTIVE (-${cost} GB)`);
       setReroutingNodeIndex(null);
       return;
@@ -737,7 +767,6 @@ const App: React.FC = () => {
         gameRef.current.currentEnergy -= card.cost;
         setGameState(prev => ({
           ...prev,
-          energyPoints: prev.energyPoints - card.cost,
           hand: prev.hand.filter((_, i) => i !== idx),
           discard: [...prev.discard, card],
           totalCardsDeployed: prev.totalCardsDeployed + 1
@@ -765,12 +794,16 @@ const App: React.FC = () => {
     setMousePos(null);
   };
 
+  /**
+   * Refactored 60FPS Game Loop with 10Hz State Syncing & Canvas-based Floating Text
+   */
   useEffect(() => {
     if (!canvasRef.current || !gameState.isGameStarted) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
     let requestRef: number;
     
+    // Throttled UI Syncing Protocol (10Hz)
     const syncUI = () => {
       setGameState(prev => {
         const hpChanged = prev.kernelHP !== gameRef.current.currentHP;
@@ -789,6 +822,18 @@ const App: React.FC = () => {
     const loop = (time: number) => {
       const dt = (time - gameRef.current.lastFrameTime) / 1000;
       gameRef.current.lastFrameTime = time;
+
+      // Handle Throttled Syncing
+      if (time - gameRef.current.lastSyncTime > 100) {
+        syncUI();
+        gameRef.current.lastSyncTime = time;
+      }
+
+      // Stability check: Skip logic if engine is explicitly paused for heavy operations
+      if (gameRef.current.gamePaused) {
+        requestRef = requestAnimationFrame(loop);
+        return;
+      }
       
       if (bgCanvasRef.current) {
         ctx.drawImage(bgCanvasRef.current, 0, 0);
@@ -862,25 +907,38 @@ const App: React.FC = () => {
         }
       }
 
+      // State-to-Canvas Migration: Rendering Floating Text
+      for (let i = gameRef.current.floatingTexts.length - 1; i >= 0; i--) {
+        const ft = gameRef.current.floatingTexts[i];
+        ft.life -= dt;
+        if (ft.life <= 0) {
+          gameRef.current.floatingTexts.splice(i, 1);
+        } else {
+          ft.y -= 40 * dt; // Drift up
+          ctx.save();
+          ctx.fillStyle = `rgba(61, 220, 255, ${ft.life})`;
+          ctx.font = 'bold 12px Fira Code';
+          ctx.textAlign = 'center';
+          ctx.fillText(ft.text, ft.x, ft.y);
+          ctx.restore();
+        }
+      }
+
       if (activeWave && gameState.sessionActive) {
         if (gameRef.current.enemiesToSpawn > 0) {
           gameRef.current.spawnTimer += dt;
           if (gameRef.current.spawnTimer >= 0.8) {
-            // HETEROGENEOUS WAVE LOGIC
             let malwareType = 'STANDARD';
             const aiSuggested = gameState.lastGeminiResponse?.wave_parameters?.malware_type || 'STANDARD';
             const entropy = Math.random();
 
             if (gameState.waveNumber === 0) {
-              // Wave 1: Fixed Diversity Mix (70% Standard, 30% Swarm)
               malwareType = entropy < 0.7 ? 'STANDARD' : 'SWARM_PACKET';
             } else {
-              // Wave 2+: Adaptive Diversity (60% Dominant AI Type, 40% Mutant from Pool)
               if (entropy < 0.6) {
                 malwareType = aiSuggested;
               } else {
                 const pool = ['STANDARD', 'SWARM_PACKET', 'ARMORED_ELITE', 'STEALTH_WORM'];
-                // Select a mutant type from the pool
                 malwareType = pool[Math.floor(Math.random() * pool.length)];
               }
             }
@@ -1013,7 +1071,6 @@ const App: React.FC = () => {
         ctx.setLineDash([]);
       }
       
-      syncUI();
       requestRef = requestAnimationFrame(loop);
     };
     requestRef = requestAnimationFrame(loop);
@@ -1028,7 +1085,7 @@ const App: React.FC = () => {
   }, [selectedIndices, gameState.hand]);
 
   const fuseCards = useCallback(() => {
-    if (!canFuse || !gameState.sessionActive) return;
+    if (!canFuse || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning) return;
     const [i1, i2] = selectedIndices;
     const card1 = gameState.hand[i1];
     const targetId = card1.fusionTargetId;
@@ -1047,7 +1104,7 @@ const App: React.FC = () => {
       });
       setSelectedIndices([]);
     }
-  }, [selectedIndices, gameState.hand, canFuse, gameState.sessionActive, addLog]);
+  }, [selectedIndices, gameState.hand, canFuse, gameState.sessionActive, gameState.isProcessing, gameState.isScanning, addLog]);
 
   const selectedNode = selectedNodeIndex !== null ? gameRef.current.nodes[selectedNodeIndex] : null;
 
@@ -1194,7 +1251,7 @@ const App: React.FC = () => {
               isBreachDisabled ? "border-gray-800 text-gray-800" : "border-[#3DDCFF] text-[#3DDCFF] hover:bg-[#3DDCFF]/10 shadow-[0_0_15px_rgba(61,220,255,0.2)]"
             }`}
           >
-            {gameState.isProcessing ? "REASONING..." : "INIT_BREACH [SPACE]"}
+            {gameState.isScanning ? "SCANNING..." : (gameState.isProcessing ? "REASONING..." : "INIT_BREACH [SPACE]")}
           </button>
         </footer>
       </aside>
@@ -1212,9 +1269,6 @@ const App: React.FC = () => {
             onMouseLeave={handleMouseLeave}
             onClick={handleCanvasClick}
           />
-          {floatingTexts.map(ft => (
-              <div key={ft.id} className="absolute text-[#3DDCFF] font-black text-xs pointer-events-none animate-drift-up z-50 whitespace-nowrap" style={{ left: ft.x, top: ft.y }}>{ft.text}</div>
-          ))}
           {selectedNode && (
             <div className="absolute border-2 border-[#3DDCFF] animate-reticle pointer-events-none z-10" style={{ left: selectedNode.gridX * TILE_SIZE, top: selectedNode.gridY * TILE_SIZE, width: TILE_SIZE, height: TILE_SIZE, boxShadow: '0 0 10px #3DDCFF' }} />
           )}
@@ -1393,16 +1447,16 @@ const App: React.FC = () => {
 
               <footer className="grid grid-cols-2 gap-4 mt-auto">
                 <button 
-                  disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive}
+                  disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning}
                   onClick={proceedToNextCycle} 
-                  className={`py-5 font-black uppercase tracking-wider transition-all text-sm flex items-center justify-center text-center whitespace-normal leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
+                  className={`py-5 font-black uppercase tracking-wider transition-all text-sm flex items-center justify-center text-center whitespace-normal leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning) ? 'bg-gray-800 text-gray-600 opacity-50 border-gray-900 pointer-events-none' : 'bg-[#3DDCFF] text-black hover:bg-white glitch-hover'}`}
                 >
                   [PROCEED_TO_NEXT_CYCLE]
                 </button>
                 <button 
-                  disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive}
+                  disabled={gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning}
                   onClick={abortAuditAndTerminate} 
-                  className={`py-5 border-2 font-black uppercase tracking-wider transition-all text-sm flex flex-col items-center justify-center text-center whitespace-normal leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive) ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
+                  className={`py-5 border-2 font-black uppercase tracking-wider transition-all text-sm flex flex-col items-center justify-center text-center whitespace-normal leading-tight ${(gameState.kernelHP <= 0 || gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning) ? 'border-gray-800 text-gray-800 opacity-50 pointer-events-none' : 'border-red-500 text-red-500 hover:bg-red-500/10'}`}
                 >
                   <span>Abort_Audit &</span>
                   <span>Terminate</span>
@@ -1633,7 +1687,7 @@ const App: React.FC = () => {
         </section>
         <footer className="p-4 bg-[#1A2A40]/10 border-t border-[#1A2A40] space-y-3">
           <button 
-            disabled={!canFuse || gameState.isVictory || !gameState.sessionActive} 
+            disabled={!canFuse || gameState.isVictory || !gameState.sessionActive || gameState.isProcessing || gameState.isScanning} 
             onClick={fuseCards} 
             className={`w-full py-4 border-2 font-black text-[11px] italic tracking-[0.3em] transition-all rounded shadow-sm ${canFuse ? "border-[#9CFF57] text-[#9CFF57] hover:bg-[#9CFF57]/10 animate-pulse" : "border-gray-800 text-gray-600"}`}
           >
